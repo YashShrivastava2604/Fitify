@@ -1,0 +1,95 @@
+[
+  {
+    "name": "Grilled Chicken Salad",
+    "description": "High protein, low carb meal perfect for weight loss",
+    "prepTime": 10,
+    "cookTime": 15,
+    "servings": 2,
+    "ingredients": [
+      { "name": "Chicken breast", "quantity": 200, "unit": "g" },
+      { "name": "Mixed greens", "quantity": 100, "unit": "g" },
+      { "name": "Cherry tomatoes", "quantity": 50, "unit": "g" },
+      { "name": "Cucumber", "quantity": 50, "unit": "g" },
+      { "name": "Olive oil", "quantity": 1, "unit": "tbsp" },
+      { "name": "Lemon juice", "quantity": 1, "unit": "tbsp" }
+    ],
+    "instructions": [
+      { "stepNumber": 1, "instruction": "Season chicken with salt, pepper, and herbs" },
+      { "stepNumber": 2, "instruction": "Grill chicken for 6-7 minutes each side until cooked" },
+      { "stepNumber": 3, "instruction": "Slice chicken and arrange on mixed greens" },
+      { "stepNumber": 4, "instruction": "Add tomatoes and cucumber" },
+      { "stepNumber": 5, "instruction": "Drizzle with olive oil and lemon juice" }
+    ],
+    "nutrition": {
+      "calories": 280,
+      "protein": 35,
+      "carbs": 8,
+      "fats": 13,
+      "fiber": 3,
+      "sugar": 4
+    },
+    "tags": ["high_protein", "low_carb", "gluten_free", "quick"],
+    "mealType": ["lunch", "dinner"],
+    "difficulty": "easy"
+  },
+  {
+    "name": "Oatmeal with Berries",
+    "description": "Healthy breakfast loaded with fiber",
+    "prepTime": 5,
+    "cookTime": 5,
+    "servings": 1,
+    "ingredients": [
+      { "name": "Rolled oats", "quantity": 50, "unit": "g" },
+      { "name": "Milk or almond milk", "quantity": 200, "unit": "ml" },
+      { "name": "Mixed berries", "quantity": 75, "unit": "g" },
+      { "name": "Honey", "quantity": 1, "unit": "tsp" },
+      { "name": "Chia seeds", "quantity": 1, "unit": "tsp" }
+    ],
+    "instructions": [
+      { "stepNumber": 1, "instruction": "Cook oats with milk for 5 minutes" },
+      { "stepNumber": 2, "instruction": "Top with berries, honey, and chia seeds" }
+    ],
+    "nutrition": {
+      "calories": 320,
+      "protein": 12,
+      "carbs": 52,
+      "fats": 8,
+      "fiber": 9,
+      "sugar": 18
+    },
+    "tags": ["vegetarian", "quick", "easy"],
+    "mealType": ["breakfast"],
+    "difficulty": "easy"
+  },
+  {
+    "name": "Paneer Tikka Wrap",
+    "description": "Indian-style protein-rich wrap",
+    "prepTime": 15,
+    "cookTime": 10,
+    "servings": 2,
+    "ingredients": [
+      { "name": "Paneer cubes", "quantity": 150, "unit": "g" },
+      { "name": "Whole wheat roti", "quantity": 2, "unit": "pieces" },
+      { "name": "Yogurt", "quantity": 50, "unit": "g" },
+      { "name": "Tikka masala", "quantity": 1, "unit": "tbsp" },
+      { "name": "Onions", "quantity": 50, "unit": "g" },
+      { "name": "Bell peppers", "quantity": 50, "unit": "g" }
+    ],
+    "instructions": [
+      { "stepNumber": 1, "instruction": "Marinate paneer in yogurt and tikka masala for 10 minutes" },
+      { "stepNumber": 2, "instruction": "Grill paneer and vegetables until charred" },
+      { "stepNumber": 3, "instruction": "Wrap in roti and serve" }
+    ],
+    "nutrition": {
+      "calories": 380,
+      "protein": 22,
+      "carbs": 35,
+      "fats": 16,
+      "fiber": 5,
+      "sugar": 6
+    },
+    "tags": ["vegetarian", "high_protein", "quick"],
+    "mealType": ["lunch", "dinner"],
+    "difficulty": "medium"
+  }
+]

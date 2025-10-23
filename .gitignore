@@ -1,0 +1,51 @@
+# ======= Backend (Node.js/Express) =======
+backend/node_modules/
+backend/.env
+backend/uploads/
+backend/*.log
+backend/package-lock.json
+backend/.DS_Store
+
+*venv*
+.env
+
+# Logs
+backend/logs/
+backend/npm-debug.log*
+
+# ======= Frontend (React Native/Expo) =======
+frontend/node_modules/
+frontend/.expo/
+frontend/.expo-shared/
+frontend/.env
+frontend/*.log
+frontend/.DS_Store
+frontend/coverage/
+frontend/web-build/
+frontend/package-lock.json
+frontend/yarn.lock
+
+# Expo build artifacts
+frontend/dist/
+frontend/build/
+frontend/android/
+frontend/ios/
+
+# Metro/Expo cache
+frontend/.cache/
+frontend/.watchmanconfig
+
+# React Native fast refresh state
+frontend/.react-native-packager-cache-*
+frontend/.vscode/
+
+venv
+
+# ======= Editor/OS Files =======
+.DS_Store
+*.swp
+*.swo
+Thumbs.db
+*.bak
+.idea/
+.vscode/
