@@ -15,6 +15,7 @@ const handleClerkWebhook = async (req, res) => {
 
     // If missing headers, reject
     if (!svix_id || !svix_timestamp || !svix_signature) {
+      console.error('❌ Missing Svix headers');
       return errorResponse(res, 400, 'Missing Svix headers');
     }
 
@@ -33,7 +34,7 @@ const handleClerkWebhook = async (req, res) => {
         'svix-signature': svix_signature,
       });
     } catch (err) {
-      console.error('❌ Webhook verification failed:', err);
+      console.error('❌ Webhook verification failed:', err.message);
       return errorResponse(res, 400, 'Webhook verification failed');
     }
 
@@ -66,23 +67,69 @@ const handleClerkWebhook = async (req, res) => {
 };
 
 /**
+ * Helper function to extract email from Clerk user data
+ * Handles multiple email formats from different Clerk versions
+ */
+const extractEmail = (data) => {
+  try {
+    // Format 1: email_addresses array with objects
+    if (data.email_addresses && Array.isArray(data.email_addresses) && data.email_addresses.length > 0) {
+      const primaryEmail = data.email_addresses.find(addr => addr.verification?.status === 'verified') 
+        || data.email_addresses[0];
+      return primaryEmail.email_address;
+    }
+
+    // Format 2: Direct email field
+    if (data.email) {
+      return data.email;
+    }
+
+    // Format 3: primary_email_address field
+    if (data.primary_email_address) {
+      return data.primary_email_address;
+    }
+
+    // Format 4: Email in primary email object
+    if (data.primary_email && typeof data.primary_email === 'object') {
+      return data.primary_email.email_address;
+    }
+
+    console.warn('⚠️  Could not extract email, data:', JSON.stringify(data, null, 2));
+    return null;
+  } catch (error) {
+    console.error('❌ Error extracting email:', error);
+    return null;
+  }
+};
+
+/**
  * Handle user.created event
  */
 const handleUserCreated = async (data) => {
   try {
-    const { id, email_addresses, first_name, last_name, image_url } = data;
+    console.log('📨 Processing user.created event');
+    
+    const { id, first_name, last_name, image_url } = data;
+
+    // Extract email using helper function
+    const email = extractEmail(data);
+    
+    if (!email) {
+      console.error('❌ No email found in user.created data:', JSON.stringify(data, null, 2));
+      throw new Error('No email address found in Clerk user data');
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ clerkId: id });
     if (existingUser) {
-      console.log(`ℹ️  User ${email_addresses[0].email_address} already exists`);
+      console.log(`ℹ️  User ${email} already exists in database`);
       return;
     }
 
     // Create new user
     const newUser = new User({
       clerkId: id,
-      email: email_addresses[0].email_address,
+      email: email.toLowerCase(),
       firstName: first_name || '',
       lastName: last_name || '',
       profileImageUrl: image_url || '',
@@ -90,9 +137,10 @@ const handleUserCreated = async (data) => {
     });
 
     await newUser.save();
-    console.log(`✅ Created user: ${newUser.email}`);
+    console.log(`✅ Created user in MongoDB: ${newUser.email} (Clerk ID: ${id})`);
   } catch (error) {
-    console.error('❌ Error creating user:', error);
+    console.error('❌ Error creating user:', error.message);
+    console.error('❌ Full error:', error);
     throw error;
   }
 };
@@ -102,24 +150,30 @@ const handleUserCreated = async (data) => {
  */
 const handleUserUpdated = async (data) => {
   try {
-    const { id, email_addresses, first_name, last_name, image_url } = data;
+    console.log('📨 Processing user.updated event');
+    
+    const { id, first_name, last_name, image_url } = data;
 
     const user = await User.findOne({ clerkId: id });
     if (!user) {
-      console.log(`⚠️  User ${id} not found for update`);
+      console.log(`⚠️  User ${id} not found in database for update`);
       return;
     }
 
-    // Update user fields
-    user.email = email_addresses[0].email_address;
+    // Extract and update email
+    const email = extractEmail(data);
+    if (email) {
+      user.email = email.toLowerCase();
+    }
+
     user.firstName = first_name || user.firstName;
     user.lastName = last_name || user.lastName;
     user.profileImageUrl = image_url || user.profileImageUrl;
 
     await user.save();
-    console.log(`✅ Updated user: ${user.email}`);
+    console.log(`✅ Updated user in MongoDB: ${user.email}`);
   } catch (error) {
-    console.error('❌ Error updating user:', error);
+    console.error('❌ Error updating user:', error.message);
     throw error;
   }
 };
@@ -129,6 +183,8 @@ const handleUserUpdated = async (data) => {
  */
 const handleUserDeleted = async (data) => {
   try {
+    console.log('📨 Processing user.deleted event');
+    
     const { id } = data;
 
     const user = await User.findOne({ clerkId: id });
@@ -136,9 +192,11 @@ const handleUserDeleted = async (data) => {
       user.isActive = false;
       await user.save();
       console.log(`✅ Soft deleted user: ${user.email}`);
+    } else {
+      console.log(`ℹ️  User ${id} not found for deletion`);
     }
   } catch (error) {
-    console.error('❌ Error deleting user:', error);
+    console.error('❌ Error deleting user:', error.message);
     throw error;
   }
 };
@@ -146,4 +204,3 @@ const handleUserDeleted = async (data) => {
 module.exports = {
   handleClerkWebhook,
 };
-

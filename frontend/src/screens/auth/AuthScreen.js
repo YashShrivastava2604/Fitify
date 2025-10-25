@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import Button from '../../components/common/Button';
 import COLORS from '../../constants/colors';
 
+// CRITICAL - Complete the auth session
 WebBrowser.maybeCompleteAuthSession();
 
 const AuthScreen = () => {
@@ -15,18 +16,22 @@ const AuthScreen = () => {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const { createdSessionId, setActive } = await startOAuthFlow({
-        redirectUrl: 'exp://localhost:8081', // Update with your Expo URL
-      });
+      // Start OAuth flow - Clerk handles redirects automatically
+      const { createdSessionId, setActive } = await startOAuthFlow();
 
       if (createdSessionId) {
+        // Activate the session
         await setActive({ session: createdSessionId });
+        console.log('✅ Signed in successfully!');
+        // Navigation happens automatically via SignedIn/SignedOut in App.js
+      } else {
+        Alert.alert('Error', 'Could not create session');
       }
     } catch (err) {
-      console.error('OAuth error:', JSON.stringify(err, null, 2));
+      console.error('❌ OAuth error:', err);
       Alert.alert(
-        'Sign In Error',
-        'Could not sign in with Google. Please make sure:\n\n1. You have internet connection\n2. Google OAuth is enabled in Clerk Dashboard\n3. Your Clerk app is in Development mode'
+        'Sign In Failed',
+        'Could not sign in with Google. Please try again.'
       );
     } finally {
       setIsLoading(false);
