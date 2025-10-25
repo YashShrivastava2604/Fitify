@@ -1,4 +1,5 @@
 const { Webhook } = require('svix');
+const { clerkClient } = require('@clerk/express');
 const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/responses');
 
@@ -67,38 +68,31 @@ const handleClerkWebhook = async (req, res) => {
 };
 
 /**
- * Helper function to extract email from Clerk user data
- * Handles multiple email formats from different Clerk versions
+ * Helper function to get user email from Clerk API
+ * Required because webhook data doesn't always include email details
  */
-const extractEmail = (data) => {
+const getUserEmailFromClerk = async (userId, primaryEmailAddressId) => {
   try {
-    // Format 1: email_addresses array with objects
-    if (data.email_addresses && Array.isArray(data.email_addresses) && data.email_addresses.length > 0) {
-      const primaryEmail = data.email_addresses.find(addr => addr.verification?.status === 'verified') 
-        || data.email_addresses[0];
-      return primaryEmail.email_address;
+    console.log(`🔍 Fetching email for user ${userId} with email ID ${primaryEmailAddressId}`);
+    
+    // Fetch full user data from Clerk API
+    const clerkUser = await clerkClient.users.getUser(userId);
+    
+    if (clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
+      // Find the primary email or use first one
+      const primaryEmail = clerkUser.emailAddresses.find(
+        addr => addr.id === primaryEmailAddressId
+      ) || clerkUser.emailAddresses[0];
+      
+      console.log(`✅ Found email via Clerk API: ${primaryEmail.emailAddress}`);
+      return primaryEmail.emailAddress;
     }
-
-    // Format 2: Direct email field
-    if (data.email) {
-      return data.email;
-    }
-
-    // Format 3: primary_email_address field
-    if (data.primary_email_address) {
-      return data.primary_email_address;
-    }
-
-    // Format 4: Email in primary email object
-    if (data.primary_email && typeof data.primary_email === 'object') {
-      return data.primary_email.email_address;
-    }
-
-    console.warn('⚠️  Could not extract email, data:', JSON.stringify(data, null, 2));
+    
+    console.warn('⚠️  No email addresses found in Clerk user data');
     return null;
   } catch (error) {
-    console.error('❌ Error extracting email:', error);
-    return null;
+    console.error('❌ Error fetching user from Clerk API:', error.message);
+    throw error;
   }
 };
 
@@ -109,21 +103,25 @@ const handleUserCreated = async (data) => {
   try {
     console.log('📨 Processing user.created event');
     
-    const { id, first_name, last_name, image_url } = data;
-
-    // Extract email using helper function
-    const email = extractEmail(data);
-    
-    if (!email) {
-      console.error('❌ No email found in user.created data:', JSON.stringify(data, null, 2));
-      throw new Error('No email address found in Clerk user data');
-    }
+    const { id, first_name, last_name, image_url, primary_email_address_id } = data;
 
     // Check if user already exists
     const existingUser = await User.findOne({ clerkId: id });
     if (existingUser) {
-      console.log(`ℹ️  User ${email} already exists in database`);
+      console.log(`ℹ️  User ${id} already exists in database`);
       return;
+    }
+
+    // Get email from Clerk API (since webhook doesn't include it)
+    let email = null;
+    
+    if (primary_email_address_id) {
+      email = await getUserEmailFromClerk(id, primary_email_address_id);
+    }
+    
+    if (!email) {
+      console.error('❌ Could not retrieve email for user:', id);
+      throw new Error('No email address available for user');
     }
 
     // Create new user
@@ -152,7 +150,7 @@ const handleUserUpdated = async (data) => {
   try {
     console.log('📨 Processing user.updated event');
     
-    const { id, first_name, last_name, image_url } = data;
+    const { id, first_name, last_name, image_url, primary_email_address_id } = data;
 
     const user = await User.findOne({ clerkId: id });
     if (!user) {
@@ -160,10 +158,16 @@ const handleUserUpdated = async (data) => {
       return;
     }
 
-    // Extract and update email
-    const email = extractEmail(data);
-    if (email) {
-      user.email = email.toLowerCase();
+    // Update email if changed
+    if (primary_email_address_id) {
+      try {
+        const email = await getUserEmailFromClerk(id, primary_email_address_id);
+        if (email) {
+          user.email = email.toLowerCase();
+        }
+      } catch (error) {
+        console.warn('⚠️  Could not update email, keeping existing:', error.message);
+      }
     }
 
     user.firstName = first_name || user.firstName;
