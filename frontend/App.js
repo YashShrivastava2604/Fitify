@@ -8,6 +8,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import { setAuthToken } from './src/services/api';
 
+
 // Token cache for Clerk
 const tokenCache = {
   async getToken(key) {
@@ -47,6 +48,14 @@ const AuthTokenSync = ({ children }) => {
 };
 
 export default function App() {
+
+  useEffect(() => {
+  fetch(process.env.EXPO_PUBLIC_API_URL + '/api/ping')
+    .then(res => res.json())
+    .then(console.log)
+    .catch(console.error);
+}, []);
+
   return (
     <ClerkProvider
       publishableKey={CLERK_CONFIG.PUBLISHABLE_KEY}

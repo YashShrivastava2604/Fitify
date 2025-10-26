@@ -65,6 +65,11 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/api/ping', (req, res) => {
+  console.log('Received ping from frontend');
+  res.json({ message: "pong", time: new Date() });
+});
+
 // API Routes
 app.use('/api/webhooks', require('./src/routes/webhook.routes'));
 app.use('/api/user', require('./src/routes/user.routes'));
@@ -80,7 +85,7 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('='.repeat(50));
   console.log(`🚀 FitiFy Backend Server`);
-  console.log(`📡 Running on port: ${PORT}`);
+  // console.log(`📡 Running on port: ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
   console.log(`⏰ Started at: ${new Date().toLocaleString()}`);
   console.log('='.repeat(50));

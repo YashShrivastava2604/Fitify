@@ -2,9 +2,9 @@ import Constants from 'expo-constants';
 
 // API URLs from .env
 export const API_CONFIG = {
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:5000',
-  ML_URL: process.env.EXPO_PUBLIC_ML_API_URL || 'http://192.168.1.100:8000',
-  CHAT_URL: process.env.EXPO_PUBLIC_CHAT_API_URL || 'http://192.168.1.100:8001',
+  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'http://192.168.29.196:5000',
+  ML_URL: process.env.EXPO_PUBLIC_ML_API_URL || 'http://192.168.29.196:8000',
+  CHAT_URL: process.env.EXPO_PUBLIC_CHAT_API_URL || 'http://192.168.29.196:8001',
   TIMEOUT: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT) || 30000,
 };
 
