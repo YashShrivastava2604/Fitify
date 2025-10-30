@@ -1,4 +1,3 @@
-// src/screens/auth/AuthScreen.js
 import React, { useState } from 'react';
 import {
   View,
@@ -12,8 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSSO } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import COLORS from '../../constants/colors';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -22,68 +20,41 @@ const AuthScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { startSSOFlow } = useSSO();
 
-  const buildRedirectUrl = () => {
-    // Preferred: expo proxy redirect (works in Expo Go when proxy is available)
-    // const proxy = AuthSession.makeRedirectUri({ useProxy: true });
-    // Fallback: scheme-based redirect (works for standalone / dev if you registered the scheme)
-    const schemeBased = AuthSession.makeRedirectUri({ useProxy: false, scheme: 'fitify' });
-
-    // console.log('[Auth] AuthSession.makeRedirectUri -> proxy:', proxy);
-    console.log('[Auth] AuthSession.makeRedirectUri -> schemeBased:', schemeBased);
-
-    // If proxy returned an https/http URL, prefer that (good for Expo proxy)
-    // if (proxy && proxy.startsWith('http')) return proxy;
-
-    // Otherwise fallback to scheme-based redirect (fitify://...)
-    return schemeBased;
-  };
-
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const redirectUrl = buildRedirectUrl();
-      console.log('[Auth] Using redirectUrl:', redirectUrl);
+      const redirectUrl = Linking.createURL('oauth-native-callback', {
+        scheme: 'fitify'
+      });
+      
+      console.log('[Auth] Redirect URL:', redirectUrl);
 
-      const res = await startSSOFlow({
+      const { createdSessionId, setActive, signIn, signUp } = await startSSOFlow({
         strategy: 'oauth_google',
-        redirectUrl,
+        redirectUrl
       });
 
-      console.log('[Auth] startSSOFlow result:', JSON.stringify(res, null, 2));
-
-      // Handle session shapes Clerk may return
-      const { createdSessionId, setActive, signIn, signUp, errors } = res || {};
-
-      if (createdSessionId && typeof setActive === 'function') {
+      if (createdSessionId) {
         await setActive({ session: createdSessionId });
-        console.log('[Auth] Session activated:', createdSessionId);
-        setIsLoading(false);
-        return;
+        console.log('[Auth] ✅ Session activated:', createdSessionId);
+      } else if (signIn?.status === 'needs_first_factor') {
+        // User exists but needs MFA
+        console.log('[Auth] MFA required');
+        Alert.alert('MFA Required', 'Multi-factor authentication is required');
+      } else if (signUp?.status === 'missing_requirements') {
+        // New user - missing required fields
+        console.log('[Auth] Missing requirements:', signUp.missingFields);
+        Alert.alert('Additional Info Needed', 'Please complete your profile');
+      } else {
+        console.warn('[Auth] Unexpected response:', { signIn, signUp });
+        Alert.alert('Sign In Failed', 'An unexpected error occurred');
       }
-
-      if (signIn?.createdSessionId && typeof setActive === 'function') {
-        await setActive({ session: signIn.createdSessionId });
-        console.log('[Auth] Session activated (signIn):', signIn.createdSessionId);
-        setIsLoading(false);
-        return;
-      }
-
-      if (signUp?.createdSessionId && typeof setActive === 'function') {
-        await setActive({ session: signUp.createdSessionId });
-        console.log('[Auth] Session activated (signUp):', signUp.createdSessionId);
-        setIsLoading(false);
-        return;
-      }
-
-      console.warn('[Auth] No session created, response:', { signIn, signUp, errors });
-      Alert.alert('Sign In Failed', errors?.map?.(e => e?.message).join('\n') || 'Could not complete sign in (no session). Check console.');
     } catch (err) {
-      // Handle the exact TypeError you saw and show more context
-      console.error('[Auth] OAuth exception:', err);
-      if (err && err.message && err.message.includes("href")) {
-        console.error('[Auth] Likely a redirect URL / proxy mismatch. Check printed redirect URLs and ensure they are added to Clerk allowlist and Google redirect URIs.');
-      }
-      Alert.alert('Sign In Failed', 'Unexpected error — check console logs.');
+      console.error('[Auth] OAuth error:', err);
+      Alert.alert(
+        'Sign In Failed', 
+        err.message || 'An error occurred during sign in. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -110,10 +81,16 @@ const AuthScreen = () => {
           onPress={handleGoogleSignIn}
           disabled={isLoading}
         >
-          {isLoading ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.buttonText}>Continue with Google</Text>}
+          {isLoading ? (
+            <ActivityIndicator color="white" size="small" />
+          ) : (
+            <Text style={styles.buttonText}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
 
-        <Text style={styles.terms}>By continuing, you agree to our{'\n'}Terms of Service & Privacy Policy</Text>
+        <Text style={styles.terms}>
+          By continuing, you agree to our{'\n'}Terms of Service & Privacy Policy
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -137,10 +114,21 @@ const styles = StyleSheet.create({
   featureItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   featureIcon: { fontSize: 28, marginRight: 16 },
   featureText: { fontSize: 16, color: COLORS.text, flex: 1 },
-  button: { backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 24 },
+  button: { 
+    backgroundColor: COLORS.primary, 
+    padding: 16, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    marginBottom: 24 
+  },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  terms: { fontSize: 12, color: COLORS.textLight, textAlign: 'center', lineHeight: 18 },
+  terms: { 
+    fontSize: 12, 
+    color: COLORS.textLight, 
+    textAlign: 'center', 
+    lineHeight: 18 
+  },
 });
 
 export default AuthScreen;

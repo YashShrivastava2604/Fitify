@@ -1,49 +1,65 @@
 const User = require('../models/User');
 const { errorResponse } = require('../utils/responses');
 
-/**
- * Middleware to verify Clerk authentication
- * Works with latest @clerk/express (v1.x+) where req.auth is now a function
- * 
- * Usage: 
- * 1. Add clerkMiddleware() to server.js
- * 2. Use verifyClerkToken on protected routes
- */
 const verifyClerkToken = async (req, res, next) => {
   try {
-    // NEW: Call req.auth() as a function (not an object)
-    const auth = await req.auth();
+    // Check if req.auth exists and get the auth object
+    let auth;
     
-    // Check if Clerk auth is present
+    // Handle both function and object patterns
+    if (typeof req.auth === 'function') {
+      auth = await req.auth();
+    } else if (req.auth && typeof req.auth === 'object') {
+      auth = req.auth;
+    }
+    
     if (!auth || !auth.userId) {
       console.warn('⚠️  No Clerk auth found on request');
       return errorResponse(res, 401, 'Authentication required');
     }
 
     const clerkId = auth.userId;
-    console.log(`🔍 Verifying user: ${clerkId}`);
+    console.log(`🔍 Verifying user with clerkId: ${clerkId}`);
 
-    // Find user in our database
-    const user = await User.findOne({ clerkId });
+    let user = await User.findOne({ clerkId });
 
+    // AUTO-CREATE USER IF NOT FOUND (webhook might have failed)
     if (!user) {
-      console.warn(`⚠️  User ${clerkId} not found in database`);
-      return errorResponse(res, 404, 'User not found. Please complete onboarding.');
+      console.log(`⚠️  User ${clerkId} not found - creating from token`);
+      
+      // Get email from session claims
+      const email = auth.sessionClaims?.email || auth.sessionClaims?.primaryEmailAddress;
+      
+      if (!email) {
+        console.error('❌ No email in session claims:', auth.sessionClaims);
+        return errorResponse(res, 400, 'Unable to create user - no email found');
+      }
+
+      user = new User({
+        clerkId: clerkId,
+        email: email.toLowerCase(),
+        firstName: auth.sessionClaims?.firstName || '',
+        lastName: auth.sessionClaims?.lastName || '',
+        profileImageUrl: auth.sessionClaims?.imageUrl || '',
+        isOnboarded: false,
+      });
+
+      await user.save();
+      console.log(`✅ Auto-created user: ${user.email} (${clerkId})`);
     }
 
-    // Update lastLoginAt (throttle updates to avoid too many DB writes)
+    // Update lastLoginAt (throttled)
     const lastLogin = user.lastLoginAt ? new Date(user.lastLoginAt) : null;
     const timeSinceLastLogin = lastLogin ? Date.now() - lastLogin.getTime() : Infinity;
 
     if (!lastLogin || timeSinceLastLogin > 3600000) {
-      // Update if not set or older than 1 hour
       user.lastLoginAt = new Date();
       await user.save();
       console.log(`✅ Updated lastLoginAt for user: ${user.email}`);
     }
 
-    // Attach user info to request (as an object, not function)
-    req.authData = {
+    // Attach to req.auth
+    req.auth = {
       clerkId: clerkId,
       mongoUserId: user._id,
       email: user.email,
@@ -51,8 +67,7 @@ const verifyClerkToken = async (req, res, next) => {
       sessionClaims: auth.sessionClaims,
     };
 
-    console.log(`✅ Auth verified for user: ${user.email}`);
-
+    console.log(`✅ Auth verified for user: ${user.email} (MongoDB: ${user._id})`);
     next();
   } catch (error) {
     console.error('❌ Auth middleware error:', error);
@@ -60,19 +75,15 @@ const verifyClerkToken = async (req, res, next) => {
   }
 };
 
-/**
- * Middleware to check if user has completed onboarding
- * Must be used AFTER verifyClerkToken
- */
 const requireOnboarding = (req, res, next) => {
   try {
-    if (!req.authData || !req.authData.user) {
+    if (!req.auth || !req.auth.user) {
       console.warn('⚠️  No user context in requireOnboarding');
       return errorResponse(res, 401, 'Authentication required');
     }
 
-    if (!req.authData.user.isOnboarded) {
-      console.log(`⚠️  User ${req.authData.user.email} has not completed onboarding`);
+    if (!req.auth.user.isOnboarded) {
+      console.log(`⚠️  User ${req.auth.user.email} has not completed onboarding`);
       return errorResponse(
         res,
         403,
@@ -81,7 +92,7 @@ const requireOnboarding = (req, res, next) => {
       );
     }
 
-    console.log(`✅ Onboarding verified for user: ${req.authData.user.email}`);
+    console.log(`✅ Onboarding verified for user: ${req.auth.user.email}`);
     next();
   } catch (error) {
     console.error('❌ Onboarding check error:', error);
@@ -89,18 +100,15 @@ const requireOnboarding = (req, res, next) => {
   }
 };
 
-/**
- * Middleware to optionally check onboarding without failing
- */
 const checkOnboardingStatus = (req, res, next) => {
   try {
-    if (req.authData && req.authData.user) {
-      req.authData.isOnboarded = req.authData.user.isOnboarded || false;
+    if (req.auth && req.auth.user) {
+      req.auth.isOnboarded = req.auth.user.isOnboarded || false;
     }
     next();
   } catch (error) {
     console.error('❌ Onboarding status check error:', error);
-    next(); // Don't fail, just proceed
+    next();
   }
 };
 

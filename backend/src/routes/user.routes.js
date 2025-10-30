@@ -10,18 +10,18 @@ const {
 
 // Get user profile (requires auth)
 // GET /api/user/profile
-router.get('/profile',  getUserProfile);
+router.get('/profile', verifyClerkToken, getUserProfile);
 
 // Complete onboarding
 // POST /api/user/onboarding
-router.post('/onboarding',  completeOnboarding);
+router.post('/onboarding', verifyClerkToken, completeOnboarding);
 
 // Update user profile (requires onboarding completed)
 // PUT /api/user/profile
-router.put('/profile', requireOnboarding, updateUserProfile);
+router.put('/profile', verifyClerkToken, requireOnboarding, updateUserProfile);
 
 // Get user statistics
 // GET /api/user/stats
-router.get('/stats', requireOnboarding, getUserStats);
+router.get('/stats', verifyClerkToken, requireOnboarding, getUserStats);
 
 module.exports = router;

@@ -70,9 +70,56 @@ app.get('/api/ping', (req, res) => {
   res.json({ message: "pong", time: new Date() });
 });
 
+
+// Add this BEFORE your routes (after clerkAuth)
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const User = require('./src/models/User');
+    const users = await User.find({}).select('clerkId email firstName lastName isOnboarded');
+    res.json({ 
+      success: true, 
+      count: users.length,
+      users: users.map(u => ({
+        clerkId: u.clerkId,
+        email: u.email,
+        name: `${u.firstName} ${u.lastName}`,
+        isOnboarded: u.isOnboarded
+      }))
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add this to check what Clerk is sending
+app.get('/api/debug/auth', clerkAuth, async (req, res) => {
+  try {
+    let auth;
+    if (typeof req.auth === 'function') {
+      auth = await req.auth();
+    } else {
+      auth = req.auth;
+    }
+    
+    res.json({
+      success: true,
+      clerkUserId: auth?.userId,
+      sessionClaims: auth?.sessionClaims,
+      hasAuth: !!auth
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+
+
 // API Routes
 app.use('/api/webhooks', require('./src/routes/webhook.routes'));
 app.use('/api/user', require('./src/routes/user.routes'));
+
+
+
 
 // 404 handler for undefined routes
 app.use(notFoundHandler);
