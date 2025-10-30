@@ -13,26 +13,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.Yash.fitify"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.yourname.fitify",
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
       "expo-secure-store",
       "expo-web-browser",
@@ -48,6 +28,37 @@
           "photosPermission": "Allow FitiFy to access your photos to select food images."
         }
       ]
-    ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yash.fitify",
+      "scheme": "fitify"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.yash.fitify",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": {
+            "scheme": "fitify"
+          },
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }

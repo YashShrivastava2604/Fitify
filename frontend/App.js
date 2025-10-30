@@ -1,15 +1,12 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ClerkProvider, SignedIn, SignedOut, useAuth } from '@clerk/clerk-expo';
+import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
-import { CLERK_CONFIG } from './src/constants/config';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
-import { setAuthToken } from './src/services/api';
 
-
-// Token cache for Clerk
+// Token cache
 const tokenCache = {
   async getToken(key) {
     try {
@@ -20,58 +17,43 @@ const tokenCache = {
   },
   async saveToken(key, value) {
     try {
-      return await SecureStore.setItemAsync(key, value);
-    } catch (err) {
-      return;
-    }
+      await SecureStore.setItemAsync(key, value);
+    } catch (err) {}
   },
 };
 
-// Component to handle auth token syncing
-const AuthTokenSync = ({ children }) => {
-  const { getToken } = useAuth();
-
-  useEffect(() => {
-    const syncToken = async () => {
-      try {
-        const token = await getToken();
-        setAuthToken(token);
-      } catch (error) {
-        console.error('Token sync error:', error);
-      }
-    };
-
-    syncToken();
-  }, [getToken]);
-
-  return children;
-};
-
 export default function App() {
+  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-  useEffect(() => {
-  fetch(process.env.EXPO_PUBLIC_API_URL + '/api/ping')
-    .then(res => res.json())
-    .then(console.log)
-    .catch(console.error);
-}, []);
+  if (!publishableKey) {
+    throw new Error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY');
+  }
 
   return (
-    <ClerkProvider
-      publishableKey={CLERK_CONFIG.PUBLISHABLE_KEY}
-      tokenCache={tokenCache}
-    >
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <SafeAreaProvider>
         <StatusBar style="auto" />
-        <AuthTokenSync>
-          <SignedIn>
-            <AppNavigator />
-          </SignedIn>
-          <SignedOut>
-            <AuthScreen />
-          </SignedOut>
-        </AuthTokenSync>
+        
+        {/* Show AuthScreen for signed OUT users */}
+        <SignedOut>
+          <AuthScreen />
+        </SignedOut>
+
+        {/* Show AppNavigator ONLY for signed IN users */}
+        <SignedIn>
+          <AppNavigator />
+        </SignedIn>
       </SafeAreaProvider>
     </ClerkProvider>
   );
 }
+
+
+// const styles = StyleSheet.create({
+//   loadingContainer: {
+//     flex: 1,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     backgroundColor: '#fff',
+//   },
+// });

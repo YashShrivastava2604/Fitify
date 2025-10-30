@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,18 +16,26 @@ import COLORS from '../../constants/colors';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useUser();
-  const { profile, stats, fetchProfile, fetchStats, isLoading } = useProfileStore();
+  const { profile, stats, fetchStats, isLoading } = useProfileStore();
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadStats();
   }, []);
 
-  const loadData = async () => {
-    try {
-      await fetchProfile();
-      await fetchStats();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load profile data');
+  const loadStats = async () => {
+    // DON'T fetch profile here - AppNavigator already did it
+    // Only fetch stats if profile exists
+    if (profile && !isLoadingStats) {
+      setIsLoadingStats(true);
+      try {
+        await fetchStats();
+      } catch (error) {
+        console.log('Stats fetch failed:', error.message);
+        // Silent fail - stats are optional
+      } finally {
+        setIsLoadingStats(false);
+      }
     }
   };
 
@@ -201,6 +209,7 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
+// Keep all your styles exactly as they are
 const styles = StyleSheet.create({
   container: {
     flex: 1,

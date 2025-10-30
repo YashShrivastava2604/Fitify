@@ -21,9 +21,6 @@ const ProfileScreen = ({ navigation }) => {
   const { user } = useUser();
   const { profile, fetchProfile, isLoading } = useProfileStore();
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
 
   const handleSignOut = () => {
     Alert.alert(

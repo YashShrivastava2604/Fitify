@@ -9,7 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@clerk/clerk-expo": "^2.17.0",
+    "@clerk/clerk-expo": "^2.17.3",
     "@clerk/clerk-js": "^5.102.0",
     "@clerk/clerk-react": "^5.53.3",
     "@expo/vector-icons": "^15.0.3",
