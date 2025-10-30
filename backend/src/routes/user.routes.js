@@ -10,11 +10,11 @@ const {
 
 // Get user profile (requires auth)
 // GET /api/user/profile
-router.get('/profile', , getUserProfile);
+router.get('/profile',  getUserProfile);
 
 // Complete onboarding
 // POST /api/user/onboarding
-router.post('/onboarding', , completeOnboarding);
+router.post('/onboarding',  completeOnboarding);
 
 // Update user profile (requires onboarding completed)
 // PUT /api/user/profile
