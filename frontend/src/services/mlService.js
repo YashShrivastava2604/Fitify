@@ -26,8 +26,11 @@ export const recognizeFood = async (imageUri) => {
     const response = await api.post('/api/ml/recognize', {
       image: base64Image
     });
+    console.log('📦 Full response:', response);
+    console.log('📦 Response.data:', response.data);
 
-    return response.data;
+    // return response.data;
+    return response;
   } catch (error) {
     console.error('ML Service Error:', error);
     throw error;

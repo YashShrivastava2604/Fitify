@@ -32,7 +32,7 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => response, // ✅ Return full response, not response.data
   (error) => {
     if (error.response) {
       // Server responded with error
@@ -49,5 +49,6 @@ api.interceptors.response.use(
     }
   }
 );
+
 
 export default api;
