@@ -6,7 +6,7 @@ import { useProfileStore } from '../stores/profileStore';
 import { setAuthToken } from '../services/api';
 import Loading from '../components/common/Loading';
 
-// import FoodResultScreen from '../screens/scan/FoodResultScreen';
+import FoodResultScreen from '../screens/scan/FoodResultScreen';
 import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 
 // Import navigators and screens
@@ -79,7 +79,7 @@ const AppNavigator = () => {
           headerShown: false,
         }}
       >
-        {/* <Stack.Screen name="FoodResult" component={FoodResultScreen} /> */}
+        <Stack.Screen name="FoodResult" component={FoodResultScreen} />
         <Stack.Screen name="Chatbot" component={ChatbotScreen} />
         {needsOnboarding ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />

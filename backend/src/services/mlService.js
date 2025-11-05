@@ -3,54 +3,35 @@ const axios = require('axios');
 // Configuration
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 const CLARIFAI_PAT = process.env.CLARIFAI_API_KEY;
-const CONFIDENCE_THRESHOLD = 0.70; // 70% threshold
+const CONFIDENCE_THRESHOLD = 0.70;
 
-// Nutrition database (500+ foods)
+// Import nutrition database
 const NUTRITION_DATABASE = require('../data/nutritionDatabase');
 
 /**
  * Hybrid ML Recognition
- * 1. Priority to self-hosted model first
- * 2. If confidence < 70%, fallback to Clarifai
- * 3. Return nutrition data
  */
 const recognizeFood = async (base64Image) => {
   let result = null;
-  let source = 'unknown';
+  let source = 'clarifai';
 
-  // STEP 1: Try self-hosted model
+  // Skip self-hosted, go directly to Clarifai
+  console.log('🔍 Using Clarifai API...');
+  
   try {
-    console.log('Trying self-hosted ML model...');
-    
-    const selfHostedResult = await callSelfHostedModel(base64Image);
-    
-    if (selfHostedResult.confidence >= CONFIDENCE_THRESHOLD) {
-      console.log(`✅ Self-hosted model confidence: ${(selfHostedResult.confidence * 100).toFixed(1)}%`);
-      result = selfHostedResult;
-      source = 'self_hosted';
-    } else {
-      console.log(`⚠️ Low confidence: ${(selfHostedResult.confidence * 100).toFixed(1)}% - trying Clarifai...`);
-      throw new Error('Low confidence, trying fallback');
-    }
+    const clarifaiResult = await callClarifaiAPI(base64Image);
+    result = clarifaiResult;
+    source = 'clarifai';
   } catch (error) {
-    console.log('Self-hosted model failed or low confidence, using Clarifai fallback...');
-    
-    // STEP 2: Fallback to Clarifai
-    try {
-      const clarifaiResult = await callClarifaiAPI(base64Image);
-      result = clarifaiResult;
-      source = 'clarifai';
-    } catch (clarifaiError) {
-      console.error('❌ Both ML services failed');
-      return {
-        success: false,
-        error: 'Could not recognize food',
-        message: 'Please try again or enter manually'
-      };
-    }
+    console.error('❌ Clarifai failed:', error.message);
+    return {
+      success: false,
+      error: 'Recognition failed',
+      message: 'Could not recognize food. Please try again or enter manually.'
+    };
   }
 
-  // STEP 3: Get nutrition data
+  // Get nutrition data
   const nutrition = getNutritionData(result.food_name);
 
   return {
@@ -58,13 +39,13 @@ const recognizeFood = async (base64Image) => {
     food_name: result.food_name,
     confidence: result.confidence,
     nutrition: nutrition,
-    source: source, // 'self_hosted' or 'clarifai'
+    source: source,
     alternatives: result.alternatives || []
   };
 };
 
 /**
- * Call self-hosted ML model (Python Flask)
+ * Call self-hosted ML model (will fail if not running)
  */
 const callSelfHostedModel = async (base64Image) => {
   const response = await axios.post(
@@ -84,6 +65,10 @@ const callSelfHostedModel = async (base64Image) => {
  * Call Clarifai API (fallback)
  */
 const callClarifaiAPI = async (base64Image) => {
+  if (!CLARIFAI_PAT) {
+    throw new Error('Clarifai API key not configured');
+  }
+
   const base64Data = base64Image.includes(',') 
     ? base64Image.split(',')[1] 
     : base64Image;
@@ -105,7 +90,8 @@ const callClarifaiAPI = async (base64Image) => {
       headers: {
         'Authorization': `Key ${CLARIFAI_PAT}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 15000
     }
   );
 
@@ -113,10 +99,10 @@ const callClarifaiAPI = async (base64Image) => {
   const topFood = concepts[0];
 
   return {
-    food_name: topFood.name,
+    food_name: topFood.name.replace(/-/g, ' '), // Clean up name
     confidence: topFood.value,
     alternatives: concepts.slice(1, 4).map(c => ({
-      name: c.name,
+      name: c.name.replace(/-/g, ' '),
       confidence: c.value
     }))
   };
@@ -141,7 +127,14 @@ const getNutritionData = (foodName) => {
   }
 
   // Default fallback
-  return NUTRITION_DATABASE['default'];
+  console.log(`⚠️ No nutrition data for: ${foodName}, using default`);
+  return {
+    calories: 150,
+    protein: 5,
+    carbs: 20,
+    fats: 5,
+    fiber: 2
+  };
 };
 
 module.exports = {

@@ -18,6 +18,33 @@ const FoodResultScreen = ({ route, navigation }) => {
   const { result, imageUri } = route.params;
   const [servingSize, setServingSize] = useState(100); // Default 100g
 
+  // Safety check - if no result, go back
+  React.useEffect(() => {
+    if (!result || !result.nutrition) {
+      Alert.alert(
+        'Error',
+        'No food data available',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    }
+  }, [result]);
+
+  // Early return if no data
+  if (!result || !result.nutrition) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const adjustedNutrition = {
     calories: Math.round((result.nutrition.calories * servingSize) / 100),
     protein: Math.round((result.nutrition.protein * servingSize) / 100),

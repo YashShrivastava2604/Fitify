@@ -57,20 +57,48 @@ const ScanFoodScreen = ({ navigation }) => {
   setIsProcessing(true);
   
   try {
-    const result = await recognizeFood(capturedImage);
+    console.log('🔍 Calling ML service...');
+    const response = await recognizeFood(capturedImage);
     
-    // Navigate to result screen
+    console.log('✅ ML Response:', response);
+    
+    // Check if we got valid data
+    if (!response || !response.food_name || !response.nutrition) {
+      throw new Error('Invalid response from ML service');
+    }
+
+    // Navigate to result screen with proper data structure
     navigation.navigate('FoodResult', {
-      result: result,
+      result: {
+        food_name: response.food_name,
+        confidence: response.confidence || 0.5,
+        source: response.source || 'clarifai',
+        alternatives: response.alternatives || [],
+        nutrition: {
+          calories: response.nutrition.calories || 0,
+          protein: response.nutrition.protein || 0,
+          carbs: response.nutrition.carbs || 0,
+          fats: response.nutrition.fats || 0,
+        }
+      },
       imageUri: capturedImage
     });
+    
   } catch (error) {
+    console.error('❌ Recognition error:', error);
+    
     Alert.alert(
       'Recognition Failed',
       'Could not recognize the food. Would you like to enter it manually?',
       [
-        { text: 'Try Again', onPress: () => setCapturedImage(null) },
-        { text: 'Manual Entry', onPress: () => navigation.navigate('Search') }
+        { 
+          text: 'Try Again', 
+          onPress: () => setCapturedImage(null) 
+        },
+        { 
+          text: 'Manual Entry', 
+          onPress: () => navigation.navigate('Search') 
+        }
       ]
     );
   } finally {
