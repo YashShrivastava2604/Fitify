@@ -112,13 +112,11 @@ app.get('/api/debug/auth', clerkAuth, async (req, res) => {
   }
 });
 
-
-
 // API Routes
 app.use('/api/webhooks', require('./src/routes/webhook.routes'));
 app.use('/api/user', require('./src/routes/user.routes'));
-
-
+app.use('/api/chatbot', require('./src/routes/chatbot.routes'));
+app.use('/api/meals', require('./src/routes/meal.routes'));
 
 
 // 404 handler for undefined routes

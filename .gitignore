@@ -25,6 +25,10 @@ frontend/web-build/
 frontend/package-lock.json
 frontend/yarn.lock
 
+
+Datasets
+Datasets/*
+
 # Expo build artifacts
 frontend/dist/
 frontend/build/

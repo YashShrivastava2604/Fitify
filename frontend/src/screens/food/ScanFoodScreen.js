@@ -8,25 +8,19 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '../../components/common/Button';
 import COLORS from '../../constants/colors';
+import { recognizeFood } from '../../services/mlService';
+import Loading from '../../components/common/Loading';
 
 const ScanFoodScreen = ({ navigation }) => {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [capturedImage, setCapturedImage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef(null);
-
-  // Request camera permissions on mount
-  React.useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
 
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -45,14 +39,14 @@ const ScanFoodScreen = ({ navigation }) => {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
       });
 
-      if (!result.canceled) {
-        setCapturedImage(result.assets[0].uri);
+      if (!result.canceled && result.assets) {
+        const selectedImage = result.assets[0];
+        setCapturedImage(selectedImage.uri);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image');
@@ -60,39 +54,40 @@ const ScanFoodScreen = ({ navigation }) => {
   };
 
   const processImage = async () => {
-    setIsProcessing(true);
+  setIsProcessing(true);
+  
+  try {
+    const result = await recognizeFood(capturedImage);
     
-    // Simulate API call (replace with actual ML service call)
-    setTimeout(() => {
-      setIsProcessing(false);
-      Alert.alert(
-        'Food Detected!',
-        'Found: Chicken breast (200g)\nCalories: 330\nProtein: 62g\n\nThis feature will be connected to the ML service in Phase 3!',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => {
-              setCapturedImage(null);
-            },
-          },
-          {
-            text: 'Add to Diary',
-            onPress: () => {
-              setCapturedImage(null);
-              navigation.navigate('Diary');
-            },
-          },
-        ]
-      );
-    }, 2000);
-  };
+    // Navigate to result screen
+    navigation.navigate('FoodResult', {
+      result: result,
+      imageUri: capturedImage
+    });
+  } catch (error) {
+    Alert.alert(
+      'Recognition Failed',
+      'Could not recognize the food. Would you like to enter it manually?',
+      [
+        { text: 'Try Again', onPress: () => setCapturedImage(null) },
+        { text: 'Manual Entry', onPress: () => navigation.navigate('Search') }
+      ]
+    );
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+  // Add loading overlay
+  if (isProcessing) {
+    return <Loading text="Analyzing food..." />;
+  }
 
   const retake = () => {
     setCapturedImage(null);
   };
 
-  if (hasPermission === null) {
+  if (!permission) {
     return (
       <View style={styles.centered}>
         <Text>Requesting camera permission...</Text>
@@ -100,14 +95,14 @@ const ScanFoodScreen = ({ navigation }) => {
     );
   }
 
-  if (hasPermission === false) {
+  if (!permission.granted) {
     return (
       <View style={styles.centered}>
         <Ionicons name="camera-off-outline" size={64} color={COLORS.textLight} />
-        <Text style={styles.noPermissionText}>No access to camera</Text>
+        <Text style={styles.noPermissionText}>Camera permission required</Text>
         <Button
-          title="Go to Settings"
-          onPress={() => Alert.alert('Info', 'Please enable camera permission in settings')}
+          title="Grant Permission"
+          onPress={requestPermission}
           style={styles.settingsButton}
         />
       </View>
@@ -141,9 +136,9 @@ const ScanFoodScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         style={styles.camera}
-        type={Camera.Constants.Type.back}
+        facing="back"
         ref={cameraRef}
       >
         <SafeAreaView style={styles.cameraContent}>
@@ -175,7 +170,7 @@ const ScanFoodScreen = ({ navigation }) => {
             <View style={styles.placeholder} />
           </View>
         </SafeAreaView>
-      </Camera>
+      </CameraView>
     </View>
   );
 };

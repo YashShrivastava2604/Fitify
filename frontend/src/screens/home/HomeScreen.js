@@ -11,129 +11,129 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@clerk/clerk-expo';
 import { useProfileStore } from '../../stores/profileStore';
+import { useMealsStore } from '../../stores/mealsStore';
 import Loading from '../../components/common/Loading';
 import COLORS from '../../constants/colors';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useUser();
-  const { profile, stats, fetchStats, isLoading } = useProfileStore();
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const { profile } = useProfileStore();
+  const { todaysMeals, todaysTotals, fetchTodaysMeals, isLoading } = useMealsStore();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    loadStats();
+    loadData();
   }, []);
 
-  const loadStats = async () => {
-    // DON'T fetch profile here - AppNavigator already did it
-    // Only fetch stats if profile exists
-    if (profile && !isLoadingStats) {
-      setIsLoadingStats(true);
-      try {
-        await fetchStats();
-      } catch (error) {
-        console.log('Stats fetch failed:', error.message);
-        // Silent fail - stats are optional
-      } finally {
-        setIsLoadingStats(false);
-      }
+  const loadData = async () => {
+    try {
+      await fetchTodaysMeals();
+    } catch (error) {
+      console.log('Failed to load meals:', error.message);
     }
+  };
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
   };
 
   if (isLoading || !profile) {
     return <Loading text="Loading your dashboard..." />;
   }
 
-  const MacroCard = ({ title, current, target, color, icon }) => {
-    const percentage = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-    
-    return (
-      <View style={styles.macroCard}>
-        <View style={styles.macroHeader}>
-          <Ionicons name={icon} size={20} color={color} />
-          <Text style={styles.macroTitle}>{title}</Text>
-        </View>
-        <Text style={styles.macroValue}>
-          {current}g / {target}g
-        </Text>
-        <View style={styles.progressBar}>
-          <View 
-            style={[
-              styles.progressFill, 
-              { width: `${percentage}%`, backgroundColor: color }
-            ]} 
-          />
-        </View>
-        <Text style={styles.percentage}>{Math.round(percentage)}%</Text>
-      </View>
-    );
-  };
-
-  const QuickActionCard = ({ title, subtitle, icon, onPress, color = COLORS.primary }) => (
-    <TouchableOpacity style={styles.actionCard} onPress={onPress}>
-      <View style={[styles.actionIcon, { backgroundColor: `${color}20` }]}>
-        <Ionicons name={icon} size={24} color={color} />
-      </View>
-      <View style={styles.actionText}>
-        <Text style={styles.actionTitle}>{title}</Text>
-        <Text style={styles.actionSubtitle}>{subtitle}</Text>
-      </View>
-    </TouchableOpacity>
+  const remaining = profile.dailyCalorieTarget - (todaysTotals?.calories || 0);
+  const caloriePercentage = Math.min(
+    ((todaysTotals?.calories || 0) / profile.dailyCalorieTarget) * 100,
+    100
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <TouchableOpacity onPress={onRefresh}>
+            <Ionicons name="refresh" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello, {user?.firstName || 'there'}! 👋</Text>
-            <Text style={styles.date}>{new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}</Text>
+            <Text style={styles.greeting}>
+              Hello, {user?.firstName || 'there'}! 👋
+            </Text>
+            <Text style={styles.date}>
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             <Ionicons name="person-circle-outline" size={32} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
 
-        {/* Daily Overview */}
+        {/* Daily Overview Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Today's Overview</Text>
-          
+
+          {/* Calories Circle Progress */}
           <View style={styles.caloriesContainer}>
-            <Text style={styles.caloriesConsumed}>
-              {stats?.currentWeight ? '1,450' : '0'} calories
-            </Text>
-            <Text style={styles.caloriesTarget}>
-              of {profile.dailyCalorieTarget} goal
-            </Text>
-            <Text style={styles.caloriesRemaining}>
-              {profile.dailyCalorieTarget - (stats?.currentWeight ? 1450 : 0)} remaining
-            </Text>
+            <View style={styles.caloriesCircle}>
+              <Text style={styles.caloriesConsumed}>
+                {todaysTotals?.calories || 0}
+              </Text>
+              <Text style={styles.caloriesUnit}>cal</Text>
+            </View>
+            
+            <View style={styles.caloriesInfo}>
+              <Text style={styles.caloriesTarget}>
+                Goal: {profile.dailyCalorieTarget} cal
+              </Text>
+              <Text style={[
+                styles.caloriesRemaining,
+                { color: remaining > 0 ? COLORS.success : COLORS.error }
+              ]}>
+                {remaining > 0 
+                  ? `${remaining} remaining` 
+                  : `${Math.abs(remaining)} over`}
+              </Text>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill,
+                    { width: `${caloriePercentage}%` }
+                  ]}
+                />
+              </View>
+            </View>
           </View>
 
-          {/* Macro breakdown */}
+          {/* Macro Breakdown */}
           <View style={styles.macroContainer}>
-            <MacroCard 
+            <MacroCard
               title="Protein"
-              current={stats?.currentWeight ? 85 : 0}
+              current={todaysTotals?.protein || 0}
               target={profile.macroTargets.protein}
               color={COLORS.protein}
               icon="fitness-outline"
             />
-            <MacroCard 
+            <MacroCard
               title="Carbs"
-              current={stats?.currentWeight ? 140 : 0}
+              current={todaysTotals?.carbs || 0}
               target={profile.macroTargets.carbs}
               color={COLORS.carbs}
               icon="leaf-outline"
             />
-            <MacroCard 
+            <MacroCard
               title="Fats"
-              current={stats?.currentWeight ? 45 : 0}
+              current={todaysTotals?.fats || 0}
               target={profile.macroTargets.fats}
               color={COLORS.fats}
               icon="water-outline"
@@ -141,67 +141,101 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Recent Meals */}
+        {todaysMeals && todaysMeals.length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.recentHeader}>
+              <Text style={styles.cardTitle}>Today's Meals</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Diary')}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {todaysMeals.slice(0, 3).map((meal) => (
+              <View key={meal._id} style={styles.mealRow}>
+                <View style={styles.mealInfo}>
+                  <Text style={styles.mealName}>{meal.food.name}</Text>
+                  <Text style={styles.mealType}>
+                    {meal.mealType.charAt(0).toUpperCase() + meal.mealType.slice(1)} • {meal.food.servingSize}g
+                  </Text>
+                </View>
+                <Text style={styles.mealCalories}>{meal.nutrition.calories} cal</Text>
+              </View>
+            ))}
+
+            {todaysMeals.length > 3 && (
+              <TouchableOpacity onPress={() => navigation.navigate('Diary')}>
+                <Text style={styles.viewMoreText}>
+                  View {todaysMeals.length - 3} more meals →
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Quick Actions */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Quick Actions</Text>
           <View style={styles.actionsContainer}>
             <QuickActionCard
               title="Scan Food"
-              subtitle="Take a photo to log meals"
+              subtitle="Take a photo"
               icon="camera-outline"
               onPress={() => navigation.navigate('Scan')}
               color={COLORS.primary}
             />
             <QuickActionCard
-              title="Search Food"
-              subtitle="Manually add foods"
+              title="AI Assistant"
+              subtitle="Ask questions"
+              icon="chatbubbles-outline"
+              onPress={() => navigation.navigate('Chatbot')}
+              color={COLORS.info}
+            />
+            <QuickActionCard
+              title="Add Meal"
+              subtitle="Manual entry"
               icon="search-outline"
               onPress={() => navigation.navigate('Search')}
               color={COLORS.secondary}
             />
             <QuickActionCard
               title="View Diary"
-              subtitle="See today's meals"
+              subtitle="Full history"
               icon="book-outline"
               onPress={() => navigation.navigate('Diary')}
-              color={COLORS.info}
-            />
-            <QuickActionCard
-              title="Meal Plans"
-              subtitle="Get recipe suggestions"
-              icon="restaurant-outline"
-              onPress={() => navigation.navigate('MealPlans')}
               color={COLORS.success}
             />
           </View>
         </View>
 
-        {/* Progress Card */}
+        {/* Progress Stats */}
         <View style={styles.card}>
           <View style={styles.progressHeader}>
-            <Text style={styles.cardTitle}>Your Progress</Text>
+            <Text style={styles.cardTitle}>Your Stats</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Progress')}>
-              <Text style={styles.seeAll}>See All</Text>
+              <Text style={styles.seeAll}>See More</Text>
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.progressStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile.currentWeight} kg</Text>
-              <Text style={styles.statLabel}>Current Weight</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile.bmi}</Text>
-              <Text style={styles.statLabel}>BMI ({profile.bmiCategory})</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {profile.goal === 'lose' ? '-0.5' : profile.goal === 'gain' ? '+0.5' : '0.0'} kg
-              </Text>
-              <Text style={styles.statLabel}>Goal</Text>
-            </View>
+            <StatItem
+              label="Current Weight"
+              value={profile.currentWeight}
+              unit="kg"
+              icon="barbell-outline"
+            />
+            <StatItem
+              label="BMI"
+              value={profile.bmi?.toFixed(1)}
+              unit={profile.bmiCategory}
+              icon="heart-outline"
+            />
+            <StatItem
+              label="Meals Today"
+              value={todaysMeals?.length || 0}
+              unit="meals"
+              icon="restaurant-outline"
+            />
           </View>
         </View>
       </ScrollView>
@@ -209,7 +243,55 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-// Keep all your styles exactly as they are
+const MacroCard = ({ title, current, target, color, icon }) => {
+  const percentage = Math.min((current / target) * 100, 100);
+
+  return (
+    <View style={styles.macroCard}>
+      <View style={styles.macroHeader}>
+        <Ionicons name={icon} size={18} color={color} />
+        <Text style={styles.macroTitle}>{title}</Text>
+      </View>
+      <Text style={styles.macroValue}>
+        {Math.round(current)}g / {Math.round(target)}g
+      </Text>
+      <View style={styles.progressBar}>
+        <View
+          style={[
+            styles.progressFill,
+            { width: `${percentage}%`, backgroundColor: color }
+          ]}
+        />
+      </View>
+      <Text style={styles.percentage}>{Math.round(percentage)}%</Text>
+    </View>
+  );
+};
+
+const QuickActionCard = ({ title, subtitle, icon, onPress, color }) => (
+  <TouchableOpacity style={styles.actionCard} onPress={onPress}>
+    <View style={[styles.actionIcon, { backgroundColor: `${color}20` }]}>
+      <Ionicons name={icon} size={24} color={color} />
+    </View>
+    <View style={styles.actionText}>
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionSubtitle}>{subtitle}</Text>
+    </View>
+  </TouchableOpacity>
+);
+
+const StatItem = ({ label, value, unit, icon }) => (
+  <View style={styles.statItem}>
+    <Ionicons name={icon} size={20} color={COLORS.primary} />
+    <View style={styles.statContent}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>
+        {value} <Text style={styles.statUnit}>{unit}</Text>
+      </Text>
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -217,6 +299,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
@@ -252,22 +335,50 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   caloriesContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  caloriesCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: `${COLORS.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 20,
   },
   caloriesConsumed: {
     fontSize: 32,
     fontWeight: 'bold',
     color: COLORS.primary,
   },
+  caloriesUnit: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  caloriesInfo: {
+    flex: 1,
+  },
   caloriesTarget: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
   caloriesRemaining: {
     fontSize: 14,
-    color: COLORS.textLight,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: COLORS.backgroundGray,
+    borderRadius: 3,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 3,
   },
   macroContainer: {
     flexDirection: 'row',
@@ -276,7 +387,6 @@ const styles = StyleSheet.create({
   macroCard: {
     flex: 1,
     marginHorizontal: 4,
-    alignItems: 'center',
   },
   macroHeader: {
     flexDirection: 'row',
@@ -294,21 +404,55 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 8,
   },
-  progressBar: {
-    width: '100%',
-    height: 6,
-    backgroundColor: COLORS.backgroundGray,
-    borderRadius: 3,
-    marginBottom: 4,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
   percentage: {
     fontSize: 12,
     fontWeight: '600',
     color: COLORS.text,
+    marginTop: 4,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  seeAll: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  mealRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  mealInfo: {
+    flex: 1,
+  },
+  mealName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.text,
+    marginBottom: 2,
+    textTransform: 'capitalize',
+  },
+  mealType: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  mealCalories: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  viewMoreText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginTop: 12,
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -351,35 +495,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  seeAll: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
   progressStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    gap: 12,
   },
   statItem: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
+  statContent: {
+    marginLeft: 12,
+    flex: 1,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
-    textAlign: 'center',
+    marginBottom: 2,
   },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: COLORS.border,
-    marginHorizontal: 12,
+  statValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  statUnit: {
+    fontSize: 13,
+    fontWeight: 'normal',
+    color: COLORS.textSecondary,
   },
 });
 

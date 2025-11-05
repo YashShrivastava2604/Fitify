@@ -1,199 +1,289 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { Ionicons } from '@expo/vector-icons';
+import { useMealsStore } from '../../stores/mealsStore';
+import { useProfileStore } from '../../stores/profileStore';
+import Loading from '../../components/common/Loading';
 import COLORS from '../../constants/colors';
 
 const DiaryScreen = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const { dailySummary, fetchDailySummary, deleteMeal, isLoading } = useMealsStore();
+  const { profile } = useProfileStore();
 
-  // Mock data (will be replaced with actual API data)
-  const meals = {
-    breakfast: [
-      { id: 1, name: 'Oatmeal with berries', calories: 320, protein: 12, carbs: 52, fats: 8 },
-      { id: 2, name: 'Green smoothie', calories: 180, protein: 8, carbs: 28, fats: 4 },
-    ],
-    lunch: [
-      { id: 3, name: 'Grilled chicken salad', calories: 420, protein: 45, carbs: 20, fats: 18 },
-    ],
-    dinner: [
-      { id: 4, name: 'Salmon with vegetables', calories: 530, protein: 42, carbs: 30, fats: 28 },
-    ],
-    snack: [],
+  useEffect(() => {
+    loadData();
+  }, [selectedDate]);
+
+  const loadData = async () => {
+    try {
+      await fetchDailySummary(selectedDate);
+    } catch (error) {
+      console.error('Failed to load diary:', error);
+    }
   };
 
-  const totals = {
-    calories: 1450,
-    protein: 107,
-    carbs: 130,
-    fats: 58,
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
-  const targets = {
-    calories: 1800,
-    protein: 120,
-    carbs: 160,
-    fats: 60,
+  const changeDate = (days) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
   };
 
-  const MealSection = ({ title, icon, items, mealType }) => (
-    <View style={styles.mealSection}>
-      <View style={styles.mealHeader}>
-        <View style={styles.mealTitleContainer}>
-          <Ionicons name={icon} size={24} color={COLORS.primary} />
-          <Text style={styles.mealTitle}>{title}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AddFood', { mealType })}
-        >
-          <Ionicons name="add-circle-outline" size={28} color={COLORS.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {items.length === 0 ? (
-        <Text style={styles.emptyText}>No items logged</Text>
-      ) : (
-        items.map((item) => (
-          <View key={item.id} style={styles.foodItem}>
-            <View style={styles.foodInfo}>
-              <Text style={styles.foodName}>{item.name}</Text>
-              <Text style={styles.foodDetails}>
-                P: {item.protein}g | C: {item.carbs}g | F: {item.fats}g
-              </Text>
-            </View>
-            <Text style={styles.foodCalories}>{item.calories} cal</Text>
-          </View>
-        ))
-      )}
-    </View>
-  );
-
-  const MacroProgress = ({ label, current, target, color }) => {
-    const percentage = (current / target) * 100;
-    
-    return (
-      <View style={styles.macroItem}>
-        <View style={styles.macroInfo}>
-          <Text style={styles.macroLabel}>{label}</Text>
-          <Text style={styles.macroValue}>{current}g / {target}g</Text>
-        </View>
-        <View style={styles.macroBar}>
-          <View 
-            style={[
-              styles.macroBarFill, 
-              { width: `${Math.min(percentage, 100)}%`, backgroundColor: color }
-            ]} 
-          />
-        </View>
-      </View>
+  const handleDeleteMeal = (mealId, foodName) => {
+    Alert.alert(
+      'Delete Meal',
+      `Remove ${foodName} from diary?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMeal(mealId);
+              loadData();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete meal');
+            }
+          }
+        }
+      ]
     );
   };
 
+  if (isLoading && !dailySummary) {
+    return <Loading text="Loading diary..." />;
+  }
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Date Selector */}
-        <View style={styles.dateSelector}>
-          <TouchableOpacity>
-            <Ionicons name="chevron-back" size={28} color={COLORS.text} />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Date Navigator */}
+        <View style={styles.dateNavigator}>
+          <TouchableOpacity onPress={() => changeDate(-1)}>
+            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
+
           <Text style={styles.dateText}>
-            {selectedDate.toLocaleDateString('en-US', { 
-              weekday: 'short',
-              month: 'short', 
+            {isToday ? 'Today' : selectedDate.toLocaleDateString('en-US', {
+              month: 'long',
               day: 'numeric',
-              year: 'numeric' 
+              year: 'numeric'
             })}
           </Text>
-          <TouchableOpacity>
-            <Ionicons name="chevron-forward" size={28} color={COLORS.text} />
+
+          <TouchableOpacity 
+            onPress={() => changeDate(1)}
+            disabled={isToday}
+          >
+            <Ionicons 
+              name="chevron-forward" 
+              size={24} 
+              color={isToday ? COLORS.textLight : COLORS.text} 
+            />
           </TouchableOpacity>
         </View>
 
         {/* Daily Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Daily Summary</Text>
-          
-          <View style={styles.caloriesRow}>
-            <View style={styles.caloriesItem}>
-              <Text style={styles.caloriesLabel}>Consumed</Text>
-              <Text style={styles.caloriesValue}>{totals.calories}</Text>
-            </View>
-            <View style={styles.caloriesDivider} />
-            <View style={styles.caloriesItem}>
-              <Text style={styles.caloriesLabel}>Target</Text>
-              <Text style={styles.caloriesValue}>{targets.calories}</Text>
-            </View>
-            <View style={styles.caloriesDivider} />
-            <View style={styles.caloriesItem}>
-              <Text style={styles.caloriesLabel}>Remaining</Text>
-              <Text style={[
-                styles.caloriesValue,
-                { color: targets.calories - totals.calories >= 0 ? COLORS.success : COLORS.error }
-              ]}>
-                {targets.calories - totals.calories}
-              </Text>
-            </View>
-          </View>
+        {dailySummary && (
+          <>
+            <View style={styles.summaryCard}>
+              <Text style={styles.cardTitle}>Daily Summary</Text>
+              
+              <View style={styles.caloriesProgress}>
+                <View style={styles.caloriesHeader}>
+                  <Text style={styles.caloriesConsumed}>
+                    {dailySummary.totals.calories}
+                  </Text>
+                  <Text style={styles.caloriesTarget}>
+                    / {dailySummary.target.calories} cal
+                  </Text>
+                </View>
 
-          <View style={styles.macrosContainer}>
-            <MacroProgress 
-              label="Protein" 
-              current={totals.protein} 
-              target={targets.protein}
-              color={COLORS.protein}
-            />
-            <MacroProgress 
-              label="Carbs" 
-              current={totals.carbs} 
-              target={targets.carbs}
-              color={COLORS.carbs}
-            />
-            <MacroProgress 
-              label="Fats" 
-              current={totals.fats} 
-              target={targets.fats}
-              color={COLORS.fats}
-            />
-          </View>
-        </View>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.min(
+                          (dailySummary.totals.calories / dailySummary.target.calories) * 100,
+                          100
+                        )}%`
+                      }
+                    ]}
+                  />
+                </View>
 
-        {/* Meals */}
-        <MealSection 
-          title="Breakfast" 
-          icon="sunny-outline" 
-          items={meals.breakfast}
-          mealType="breakfast"
-        />
-        <MealSection 
-          title="Lunch" 
-          icon="restaurant-outline" 
-          items={meals.lunch}
-          mealType="lunch"
-        />
-        <MealSection 
-          title="Dinner" 
-          icon="moon-outline" 
-          items={meals.dinner}
-          mealType="dinner"
-        />
-        <MealSection 
-          title="Snacks" 
-          icon="fast-food-outline" 
-          items={meals.snack}
-          mealType="snack"
-        />
+                <Text style={styles.remaining}>
+                  {dailySummary.remaining.calories > 0
+                    ? `${dailySummary.remaining.calories} cal remaining`
+                    : `${Math.abs(dailySummary.remaining.calories)} cal over`}
+                </Text>
+              </View>
+
+              {/* Macros */}
+              <View style={styles.macrosRow}>
+                <MacroProgress
+                  label="Protein"
+                  current={dailySummary.totals.protein}
+                  target={dailySummary.target.protein}
+                  color={COLORS.protein}
+                />
+                <MacroProgress
+                  label="Carbs"
+                  current={dailySummary.totals.carbs}
+                  target={dailySummary.target.carbs}
+                  color={COLORS.carbs}
+                />
+                <MacroProgress
+                  label="Fats"
+                  current={dailySummary.totals.fats}
+                  target={dailySummary.target.fats}
+                  color={COLORS.fats}
+                />
+              </View>
+            </View>
+
+            {/* Meals by Type */}
+            {['breakfast', 'lunch', 'dinner', 'snack'].map((mealType) => (
+              <MealSection
+                key={mealType}
+                mealType={mealType}
+                meals={dailySummary.mealsByType[mealType]}
+                onDeleteMeal={handleDeleteMeal}
+                onAddMeal={() => navigation.navigate('Scan')}
+              />
+            ))}
+
+            {/* Empty State */}
+            {Object.values(dailySummary.mealsByType).every(meals => meals.length === 0) && (
+              <View style={styles.emptyState}>
+                <Ionicons name="restaurant-outline" size={64} color={COLORS.textLight} />
+                <Text style={styles.emptyText}>No meals logged yet</Text>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => navigation.navigate('Scan')}
+                >
+                  <Text style={styles.addButtonText}>Add Your First Meal</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 };
+
+const MacroProgress = ({ label, current, target, color }) => {
+  const percentage = Math.min((current / target) * 100, 100);
+
+  return (
+    <View style={styles.macroItem}>
+      <Text style={styles.macroLabel}>{label}</Text>
+      <View style={styles.macroProgressBar}>
+        <View 
+          style={[
+            styles.macroProgressFill,
+            { width: `${percentage}%`, backgroundColor: color }
+          ]}
+        />
+      </View>
+      <Text style={styles.macroValue}>{current}g / {target}g</Text>
+    </View>
+  );
+};
+
+const MealSection = ({ mealType, meals, onDeleteMeal, onAddMeal }) => {
+  const mealIcons = {
+    breakfast: 'sunny-outline',
+    lunch: 'fast-food-outline',
+    dinner: 'restaurant-outline',
+    snack: 'pizza-outline'
+  };
+
+  const mealLabels = {
+    breakfast: 'Breakfast',
+    lunch: 'Lunch',
+    dinner: 'Dinner',
+    snack: 'Snacks'
+  };
+
+  const totalCalories = meals.reduce((sum, meal) => sum + meal.nutrition.calories, 0);
+
+  return (
+    <View style={styles.mealSection}>
+      <View style={styles.mealHeader}>
+        <View style={styles.mealTitleRow}>
+          <Ionicons name={mealIcons[mealType]} size={20} color={COLORS.text} />
+          <Text style={styles.mealTitle}>{mealLabels[mealType]}</Text>
+        </View>
+        <Text style={styles.mealCalories}>{totalCalories} cal</Text>
+      </View>
+
+      {meals.length > 0 ? (
+        meals.map((meal) => (
+          <View key={meal._id} style={styles.mealCard}>
+            <View style={styles.mealInfo}>
+              <Text style={styles.foodName}>{meal.food.name}</Text>
+              <Text style={styles.servingSize}>
+                {meal.food.servingSize}{meal.food.servingUnit}
+              </Text>
+              <View style={styles.nutritionRow}>
+                <NutritionBadge label="Cal" value={meal.nutrition.calories} />
+                <NutritionBadge label="P" value={meal.nutrition.protein} />
+                <NutritionBadge label="C" value={meal.nutrition.carbs} />
+                <NutritionBadge label="F" value={meal.nutrition.fats} />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => onDeleteMeal(meal._id, meal.food.name)}
+            >
+              <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+            </TouchableOpacity>
+          </View>
+        ))
+      ) : (
+        <TouchableOpacity style={styles.addMealButton} onPress={onAddMeal}>
+          <Ionicons name="add" size={20} color={COLORS.primary} />
+          <Text style={styles.addMealText}>Add {mealLabels[mealType]}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+const NutritionBadge = ({ label, value }) => (
+  <View style={styles.nutritionBadge}>
+    <Text style={styles.nutritionBadgeLabel}>{label}</Text>
+    <Text style={styles.nutritionBadgeValue}>{value}g</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -202,15 +292,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
-  dateSelector: {
+  dateNavigator: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 20,
+    paddingHorizontal: 8,
   },
   dateText: {
     fontSize: 18,
@@ -223,69 +312,81 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
   },
-  summaryTitle: {
+  cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
     marginBottom: 16,
   },
-  caloriesRow: {
+  caloriesProgress: {
+    marginBottom: 20,
+  },
+  caloriesHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 24,
-  },
-  caloriesItem: {
-    alignItems: 'center',
-  },
-  caloriesLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-  },
-  caloriesValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  caloriesDivider: {
-    width: 1,
-    backgroundColor: COLORS.border,
-  },
-  macrosContainer: {
-    gap: 12,
-  },
-  macroItem: {
+    alignItems: 'baseline',
+    justifyContent: 'center',
     marginBottom: 8,
   },
-  macroInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+  caloriesConsumed: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: COLORS.primary,
   },
-  macroLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  macroValue: {
-    fontSize: 14,
+  caloriesTarget: {
+    fontSize: 16,
     color: COLORS.textSecondary,
+    marginLeft: 4,
   },
-  macroBar: {
+  progressBar: {
     height: 8,
     backgroundColor: COLORS.backgroundGray,
     borderRadius: 4,
-    overflow: 'hidden',
+    marginBottom: 8,
   },
-  macroBarFill: {
+  progressFill: {
     height: '100%',
+    backgroundColor: COLORS.primary,
     borderRadius: 4,
+  },
+  remaining: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  macrosRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  macroItem: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  macroLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  macroProgressBar: {
+    height: 6,
+    backgroundColor: COLORS.backgroundGray,
+    borderRadius: 3,
+    marginBottom: 4,
+  },
+  macroProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  macroValue: {
+    fontSize: 11,
+    color: COLORS.text,
+    textAlign: 'center',
   },
   mealSection: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   mealHeader: {
     flexDirection: 'row',
@@ -293,24 +394,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  mealTitleContainer: {
+  mealTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   mealTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.text,
-    marginLeft: 8,
   },
-  emptyText: {
+  mealCalories: {
     fontSize: 14,
-    color: COLORS.textLight,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
-  foodItem: {
+  mealCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -318,23 +417,75 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  foodInfo: {
+  mealInfo: {
     flex: 1,
   },
   foodName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
     color: COLORS.text,
     marginBottom: 4,
+    textTransform: 'capitalize',
   },
-  foodDetails: {
-    fontSize: 14,
+  servingSize: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  nutritionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  nutritionBadge: {
+    backgroundColor: COLORS.backgroundGray,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  nutritionBadgeLabel: {
+    fontSize: 10,
     color: COLORS.textSecondary,
   },
-  foodCalories: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  nutritionBadgeValue: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  addMealButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderStyle: 'dashed',
+  },
+  addMealText: {
+    fontSize: 14,
     color: COLORS.primary,
+    marginLeft: 8,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  addButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  addButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

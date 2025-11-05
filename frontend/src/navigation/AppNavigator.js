@@ -6,6 +6,9 @@ import { useProfileStore } from '../stores/profileStore';
 import { setAuthToken } from '../services/api';
 import Loading from '../components/common/Loading';
 
+// import FoodResultScreen from '../screens/scan/FoodResultScreen';
+import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
+
 // Import navigators and screens
 import TabNavigator from './TabNavigator';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
@@ -67,9 +70,6 @@ const AppNavigator = () => {
     return <Loading text="Loading your profile..." />;
   }
 
-  // Determine if user needs onboarding
-  // New user: profile is null
-  // Returning user who hasn't completed onboarding: profile.isOnboarded = false
   const needsOnboarding = !profile || !profile.isOnboarded;
 
   return (
@@ -79,6 +79,8 @@ const AppNavigator = () => {
           headerShown: false,
         }}
       >
+        {/* <Stack.Screen name="FoodResult" component={FoodResultScreen} /> */}
+        <Stack.Screen name="Chatbot" component={ChatbotScreen} />
         {needsOnboarding ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         ) : (
