@@ -16,7 +16,7 @@ import { VALIDATION } from '../../constants/config';
 import { useProfileStore } from '../../stores/profileStore';
 import { calculateBMI, getBMICategory } from '../../utils/calculations';
 
-const OnboardingScreen = ({ navigation }) => {
+const OnboardingScreen = () => {
   const [formData, setFormData] = useState({
     age: '',
     gender: '',
@@ -26,7 +26,7 @@ const OnboardingScreen = ({ navigation }) => {
     activityLevel: 'sedentary',
   });
   const [errors, setErrors] = useState({});
-  
+
   const { completeOnboarding, fetchProfile, isLoading } = useProfileStore();
 
   const updateFormData = (field, value) => {
@@ -72,40 +72,45 @@ const OnboardingScreen = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-const handleSubmit = async () => {
-  if (!validateForm()) {
-    Alert.alert('Validation Error', 'Please fix the errors and try again');
-    return;
-  }
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      Alert.alert('Validation Error', 'Please fix the errors and try again');
+      return;
+    }
 
-  try {
-    const data = {
-      age: parseInt(formData.age),
-      gender: formData.gender,
-      height: parseFloat(formData.height),
-      currentWeight: parseFloat(formData.currentWeight),
-      goal: formData.goal,
-      activityLevel: formData.activityLevel,
-    };
+    try {
+      const data = {
+        age: parseInt(formData.age),
+        gender: formData.gender,
+        height: parseFloat(formData.height),
+        currentWeight: parseFloat(formData.currentWeight),
+        goal: formData.goal,
+        activityLevel: formData.activityLevel,
+      };
 
-    await completeOnboarding(data);
-    
-    // ✅ FIX: After onboarding, fetch fresh profile to sync state
-    await fetchProfile();
-    
-    Alert.alert(
-      'Welcome to FitiFy!',
-      'Your profile has been set up successfully.',
-      [{ text: 'Get Started', onPress: () => navigation.replace('Main') }]
-    );
-  } catch (error) {
-    Alert.alert('Error', error.message || 'Failed to complete onboarding');
-  }
-};
+      await completeOnboarding(data);
 
+      // Fetch updated profile, so Zustand/app picks up isOnboarded immediately
+      await fetchProfile();
+
+      Alert.alert(
+        'Welcome to FitiFy!',
+        'Your profile has been set up successfully.',
+        [
+          {
+            text: 'Get Started',
+            onPress: () => {}, // No manual navigation! AppNavigator will handle the switch.
+          }
+        ]
+      );
+      // Do NOT navigate here. The navigation will happen automatically since AppNavigator will rerender!
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Failed to complete onboarding');
+    }
+  };
 
   // Calculate BMI preview
-  const bmi = formData.height && formData.currentWeight 
+  const bmi = formData.height && formData.currentWeight
     ? calculateBMI(parseFloat(formData.currentWeight), parseFloat(formData.height))
     : 0;
 

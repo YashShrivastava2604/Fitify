@@ -2,8 +2,11 @@ const successResponse = (res, statusCode, message, data = null) => {
   const response = {
     success: true,
     message,
-    ...data // Spread data directly, don't nest it
   };
+  
+  if (data) {
+    response.data = data;  // ✅ Nest it, don't spread
+  }
   
   return res.status(statusCode).json(response);
 };
