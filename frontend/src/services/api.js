@@ -30,25 +30,26 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+
 api.interceptors.response.use(
-  (response) => response, // ✅ Return full response, not response.data
+  (response) => response, // return the full axios response object
   (error) => {
     if (error.response) {
-      // Server responded with error
       console.error('API Error:', error.response.data);
-      return Promise.reject(error.response.data);
+      return Promise.reject({
+        status: error.response.status,
+        ...error.response.data,
+      });
     } else if (error.request) {
-      // Request made but no response
       console.error('Network Error:', error.message);
       return Promise.reject({ message: 'Network error. Please check your connection.' });
     } else {
-      // Something else happened
       console.error('Error:', error.message);
       return Promise.reject({ message: error.message });
     }
   }
 );
+
 
 
 export default api;

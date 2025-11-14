@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '@clerk/clerk-expo';
+import { useUser, useAuth } from '@clerk/clerk-expo';
 import { useProfileStore } from '../../stores/profileStore';
 import { useMealsStore } from '../../stores/mealsStore';
 import Loading from '../../components/common/Loading';
@@ -20,6 +20,18 @@ const HomeScreen = ({ navigation }) => {
   const { profile } = useProfileStore();
   const { todaysMeals, todaysTotals, fetchTodaysMeals, isLoading } = useMealsStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    const checkToken = async () => {
+      const token = await getToken();
+      console.log('🔑 Current token:', token ? 'EXISTS' : 'NULL');
+      console.log('🔑 Token length:', token?.length);
+    };
+    
+    checkToken();
+  }, []);
 
   useEffect(() => {
     loadData();

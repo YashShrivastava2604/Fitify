@@ -39,7 +39,6 @@ const completeOnboarding = async (req, res) => {
   try {
     const { age, gender, height, currentWeight, goal, activityLevel, dietaryRestrictions } = req.body;
 
-    // Validation
     if (!age || !gender || !height || !currentWeight || !goal) {
       return errorResponse(res, 400, 'Missing required fields');
     }
@@ -74,27 +73,26 @@ const completeOnboarding = async (req, res) => {
     user.isOnboarded = true;
     user.onboardingCompletedAt = new Date();
 
-    await user.save();
+    const updatedUser = await user.save();
 
     // Create initial weight log
     await WeightLog.create({
-      userId: user._id,
-      clerkId: user.clerkId,
+      userId: updatedUser._id,
+      clerkId: updatedUser.clerkId,
       date: new Date(),
       weight: currentWeight,
     });
 
-    console.log(`✅ User ${user.email} completed onboarding`);
+    console.log(`✅ User ${updatedUser.email} completed onboarding - isOnboarded: ${updatedUser.isOnboarded}`);
 
-    return successResponse(res, 200, 'Onboarding completed successfully', {
-      user,
-      idealWeightRange: calculateIdealWeightRange(height),
-    });
+    // ✅ FIX: Return user directly, not nested in { user: ... }
+    return successResponse(res, 200, 'Onboarding completed successfully', updatedUser);
   } catch (error) {
     console.error('Onboarding error:', error);
     return errorResponse(res, 500, 'Onboarding failed', error.message);
   }
 };
+
 
 /**
  * Update user profile
