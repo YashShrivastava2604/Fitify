@@ -1,12 +1,10 @@
 const axios = require('axios');
+const FoodDatabase = require('../models/FoodDatabase'); // Mongoose model
 
 // Configuration
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 const CLARIFAI_PAT = process.env.CLARIFAI_API_KEY;
-const CONFIDENCE_THRESHOLD = 0.70;
-
-// Import nutrition database
-const NUTRITION_DATABASE = require('../data/nutritionDatabase');
+const CONFIDENCE_THRESHOLD = 0.7;
 
 /**
  * Hybrid ML Recognition
@@ -15,9 +13,8 @@ const recognizeFood = async (base64Image) => {
   let result = null;
   let source = 'clarifai';
 
-  // Skip self-hosted, go directly to Clarifai
   console.log('🔍 Using Clarifai API...');
-  
+
   try {
     const clarifaiResult = await callClarifaiAPI(base64Image);
     result = clarifaiResult;
@@ -31,8 +28,8 @@ const recognizeFood = async (base64Image) => {
     };
   }
 
-  // Get nutrition data
-  const nutrition = getNutritionData(result.food_name);
+  // Get nutrition data asynchronously from MongoDB
+  const nutrition = await getNutritionData(result.food_name);
 
   return {
     success: true,
@@ -41,23 +38,6 @@ const recognizeFood = async (base64Image) => {
     nutrition: nutrition,
     source: source,
     alternatives: result.alternatives || []
-  };
-};
-
-/**
- * Call self-hosted ML model (will fail if not running)
- */
-const callSelfHostedModel = async (base64Image) => {
-  const response = await axios.post(
-    `${ML_SERVICE_URL}/predict`,
-    { image: base64Image },
-    { timeout: 10000 }
-  );
-
-  return {
-    food_name: response.data.food_name,
-    confidence: response.data.confidence,
-    alternatives: response.data.alternatives || []
   };
 };
 
@@ -99,7 +79,7 @@ const callClarifaiAPI = async (base64Image) => {
   const topFood = concepts[0];
 
   return {
-    food_name: topFood.name.replace(/-/g, ' '), // Clean up name
+    food_name: topFood.name.replace(/-/g, ' '),
     confidence: topFood.value,
     alternatives: concepts.slice(1, 4).map(c => ({
       name: c.name.replace(/-/g, ' '),
@@ -109,33 +89,43 @@ const callClarifaiAPI = async (base64Image) => {
 };
 
 /**
- * Get nutrition data from database
+ * Get nutrition data from MongoDB
  */
-const getNutritionData = (foodName) => {
+const getNutritionData = async (foodName) => {
+  if (!foodName) return defaultNutrition();
+
+  // Normalize key
   const key = foodName.toLowerCase().replace(/[^a-z]/g, '');
-  
-  // Try exact match
-  if (NUTRITION_DATABASE[key]) {
-    return NUTRITION_DATABASE[key];
+
+  // Exact match using text index
+  const exactMatch = await FoodDatabase.findOne({
+    $text: { $search: `"${foodName}"` }
+  });
+
+  if (exactMatch) {
+    return exactMatch.nutrition;
   }
 
-  // Try partial match
-  for (const dbKey in NUTRITION_DATABASE) {
-    if (key.includes(dbKey) || dbKey.includes(key)) {
-      return NUTRITION_DATABASE[dbKey];
-    }
+  // Partial fallback search 
+  const regex = new RegExp(key, 'i');
+  const partialMatch = await FoodDatabase.findOne({ name: regex });
+
+  if (partialMatch) {
+    return partialMatch.nutrition;
   }
 
-  // Default fallback
   console.log(`⚠️ No nutrition data for: ${foodName}, using default`);
-  return {
-    calories: 150,
-    protein: 5,
-    carbs: 20,
-    fats: 5,
-    fiber: 2
-  };
+
+  return defaultNutrition();
 };
+
+const defaultNutrition = () => ({
+  calories: 150,
+  protein: 5,
+  carbs: 20,
+  fats: 5,
+  fiber: 2
+});
 
 module.exports = {
   recognizeFood,

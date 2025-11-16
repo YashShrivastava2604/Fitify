@@ -1,4 +1,3 @@
-// backend/src/models/FoodDatabase.js
 const mongoose = require('mongoose');
 
 const foodSchema = new mongoose.Schema({

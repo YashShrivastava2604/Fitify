@@ -30,7 +30,6 @@ export const recognizeFood = async (imageUri) => {
     console.log('📦 Response.data:', response.data);
 
     return response.data;
-    // return response;
   } catch (error) {
     console.error('ML Service Error:', error);
     throw error;
