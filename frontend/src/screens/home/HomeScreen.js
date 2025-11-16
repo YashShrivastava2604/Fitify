@@ -65,11 +65,11 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <TouchableOpacity onPress={onRefresh}>
-            <Ionicons name="refresh" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-        }
+        // refreshControl={
+        //   <TouchableOpacity onPress={onRefresh}>
+        //     <Ionicons name="refresh" size={24} color={COLORS.primary} />
+        //   </TouchableOpacity>
+        // }
       >
         {/* Header */}
         <View style={styles.header}>

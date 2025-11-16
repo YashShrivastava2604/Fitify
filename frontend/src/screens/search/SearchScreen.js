@@ -310,6 +310,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.white,
     marginHorizontal: 16,
+    marginTop: 50,
     marginVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 12,
@@ -379,6 +380,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerTitle: {
+    marginTop: 20,
     fontSize: 20,
     fontWeight: '600',
     color: COLORS.text,

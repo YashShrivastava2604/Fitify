@@ -72,6 +72,17 @@ const DiaryScreen = ({ navigation }) => {
     return <Loading text="Loading diary..." />;
   }
 
+  if (isLoading && !dailySummary) {
+    return <Loading text="Loading diary..." />;
+  }
+
+  // ✅ ADD: Check if dailySummary exists and has required structure
+  const hasSummary = dailySummary && 
+                     dailySummary.totals && 
+                     dailySummary.target && 
+                     dailySummary.remaining &&
+                     dailySummary.mealsByType;
+
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
   return (
@@ -179,6 +190,18 @@ const DiaryScreen = ({ navigation }) => {
               />
             ))}
 
+            {!hasSummary && !isLoading && (
+              <View style={styles.emptyState}>
+                <Ionicons name="restaurant-outline" size={64} color={COLORS.textLight} />
+                <Text style={styles.emptyText}>No meals logged yet</Text>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => navigation.navigate('Scan')}
+                >
+                  <Text style={styles.addButtonText}>Add Your First Meal</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {/* Empty State */}
             {Object.values(dailySummary.mealsByType).every(meals => meals.length === 0) && (
               <View style={styles.emptyState}>

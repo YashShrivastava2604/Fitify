@@ -8,6 +8,8 @@ import Loading from '../components/common/Loading';
 
 import FoodResultScreen from '../screens/scan/FoodResultScreen';
 import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
+import SearchScreen from '../screens/search/SearchScreen';
+import ProgressScreen from '../screens/progress/ProgressScreen';
 import TabNavigator from './TabNavigator';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
 
@@ -39,18 +41,16 @@ const AppNavigator = () => {
           console.log('✅ Token synced to API');
         } else {
           console.error('❌ No token received from Clerk');
-          // If not signed in, that's ok - show login
           setTokenSynced(true);
         }
       } catch (error) {
         console.error('❌ Token sync error:', error);
-        setTokenSynced(true); // Continue anyway
+        setTokenSynced(true);
       }
     };
 
     syncToken();
     
-    // Refresh token every 30 seconds
     const interval = setInterval(syncToken, 30000);
     return () => clearInterval(interval);
   }, [getToken, isLoaded, isSignedIn]);
@@ -60,7 +60,6 @@ const AppNavigator = () => {
     const loadProfile = async () => {
       if (!tokenSynced || hasAttemptedFetch) return;
       
-      // Only try to fetch profile if user is signed in
       if (!isSignedIn) {
         console.log('⚠️  User not signed in, skipping profile fetch');
         setHasAttemptedFetch(true);
@@ -104,17 +103,14 @@ const AppNavigator = () => {
   console.log('  isOnboarded:', profile?.isOnboarded);
   console.log('═══════════════════════════════');
 
-  // Show loading while checking auth
   if (!isLoaded || !tokenSynced) {
     return <Loading text="Initializing..." />;
   }
 
-  // Show loading while fetching profile
   if (isSignedIn && isLoading && !hasAttemptedFetch) {
     return <Loading text="Loading your profile..." />;
   }
 
-  // NOT signed in → Show onboarding (for new users)
   if (!isSignedIn) {
     console.log('📱 Rendering: OnboardingScreen (not signed in)');
     return (
@@ -136,7 +132,6 @@ const AppNavigator = () => {
     );
   }
 
-  // Signed in but profile missing or not onboarded
   const needsOnboarding = !profile || !profile.isOnboarded;
 
   console.log(`📱 Rendering: ${needsOnboarding ? 'OnboardingScreen' : 'Main'}`);
@@ -166,7 +161,7 @@ const AppNavigator = () => {
           />
         )}
         
-        {/* Modal screens */}
+        {/* Modal screens - accessible from any tab */}
         <Stack.Screen 
           name="FoodResult" 
           component={FoodResultScreen}
@@ -177,6 +172,20 @@ const AppNavigator = () => {
         <Stack.Screen 
           name="Chatbot" 
           component={ChatbotScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen 
+          name="Search" 
+          component={SearchScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen 
+          name="Progress" 
+          component={ProgressScreen}
           options={{
             presentation: 'modal',
           }}
