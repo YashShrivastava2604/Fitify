@@ -1,9 +1,13 @@
 const XLSX = require('xlsx');
 const mongoose = require('mongoose');
 const FoodDatabase = require('../src/models/FoodDatabase');
+require('dotenv').config();
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost/fitify', {
-  // remove deprecated options for mongoose v6+
+
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://s2497239_db_user:VqcIJiSccXxRprES@clusterfitify.hbi32uj.mongodb.net/?retryWrites=true&w=majority&appName=ClusterFITIFY'
+console.log(mongoUri)
+mongoose.connect(mongoUri, {
+  // options, if any for your mongoose version
 });
 
 // Load Excel file

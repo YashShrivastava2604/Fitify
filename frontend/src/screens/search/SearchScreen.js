@@ -9,57 +9,51 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMealsStore } from '../../stores/mealsStore';
-import Loading from '../../components/common/Loading';
 import COLORS from '../../constants/colors';
-
-// Sample food database
-const FOOD_DATABASE = [
-  { name: 'Apple', calories: 52, protein: 0.3, carbs: 14, fats: 0.2 },
-  { name: 'Banana', calories: 89, protein: 1.1, carbs: 23, fats: 0.3 },
-  { name: 'Chicken Breast', calories: 165, protein: 31, carbs: 0, fats: 3.6 },
-  { name: 'Rice', calories: 130, protein: 2.7, carbs: 28, fats: 0.3 },
-  { name: 'Paneer Tikka', calories: 220, protein: 14, carbs: 8, fats: 15 },
-  { name: 'Dal Makhani', calories: 150, protein: 7, carbs: 18, fats: 5 },
-  { name: 'Biryani', calories: 200, protein: 7, carbs: 35, fats: 4 },
-  { name: 'Roti', calories: 80, protein: 3, carbs: 15, fats: 1 },
-  { name: 'Naan', calories: 260, protein: 9, carbs: 45, fats: 5 },
-  { name: 'Pizza', calories: 266, protein: 11, carbs: 33, fats: 10 },
-  { name: 'Burger', calories: 295, protein: 17, carbs: 28, fats: 14 },
-  { name: 'Pasta', calories: 131, protein: 5, carbs: 25, fats: 1 },
-  { name: 'Salad', calories: 15, protein: 1.4, carbs: 2.9, fats: 0.2 },
-  { name: 'Egg', calories: 155, protein: 13, carbs: 1.1, fats: 11 },
-];
+import foodSearchService from '../../services/foodSearchService';
 
 const SearchScreen = ({ navigation }) => {
   const [searchText, setSearchText] = useState('');
-  const [filteredFoods, setFilteredFoods] = useState(FOOD_DATABASE);
+  const [foods, setFoods] = useState([]);
   const [selectedFood, setSelectedFood] = useState(null);
   const [servingSize, setServingSize] = useState(100);
   const [mealType, setMealType] = useState('lunch');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
   const { logMeal, isLoading } = useMealsStore();
 
+  // Debounced search
   useEffect(() => {
-    filterFoods(searchText);
-  }, [searchText]);
-
-  const filterFoods = (text) => {
-    if (!text) {
-      setFilteredFoods(FOOD_DATABASE);
+    if (!searchText || searchText.trim().length < 2) {
+      setFoods([]);
+      setSearchError(null);
       return;
     }
 
-    const filtered = FOOD_DATABASE.filter(food =>
-      food.name.toLowerCase().includes(text.toLowerCase())
-    );
-    setFilteredFoods(filtered);
-  };
+    const timeout = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError(null);
+      try {
+        const results = await foodSearchService.searchFood(searchText);
+        setFoods(Array.isArray(results) ? results : []);
+      } catch (err) {
+        setSearchError(err?.error || err?.message || 'Search failed');
+        setFoods([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [searchText]);
 
   const selectFood = (food) => {
     setSelectedFood(food);
-    setServingSize(100);
+    setServingSize(food.servingSize || 100);
   };
 
   const adjustServing = (amount) => {
@@ -74,11 +68,12 @@ const SearchScreen = ({ navigation }) => {
     }
 
     try {
+      const baseServing = selectedFood.servingSize || 100;
       const adjustedNutrition = {
-        calories: Math.round((selectedFood.calories * servingSize) / 100),
-        protein: Math.round((selectedFood.protein * servingSize) / 100),
-        carbs: Math.round((selectedFood.carbs * servingSize) / 100),
-        fats: Math.round((selectedFood.fats * servingSize) / 100),
+        calories: Math.round((selectedFood.nutrition.calories * servingSize) / baseServing),
+        protein: Math.round((selectedFood.nutrition.protein * servingSize) / baseServing),
+        carbs: Math.round((selectedFood.nutrition.carbs * servingSize) / baseServing),
+        fats: Math.round((selectedFood.nutrition.fats * servingSize) / baseServing),
       };
 
       await logMeal({
@@ -86,7 +81,7 @@ const SearchScreen = ({ navigation }) => {
         nutrition: adjustedNutrition,
         mealType,
         servingSize,
-        source: 'manual'
+        source: selectedFood.source || 'manual'
       });
 
       Alert.alert('Success', 'Meal added to diary!', [
@@ -107,12 +102,14 @@ const SearchScreen = ({ navigation }) => {
     }
   };
 
+  // Selected Food View
   if (selectedFood) {
+    const baseServing = selectedFood.servingSize || 100;
     const adjustedNutrition = {
-      calories: Math.round((selectedFood.calories * servingSize) / 100),
-      protein: Math.round((selectedFood.protein * servingSize) / 100),
-      carbs: Math.round((selectedFood.carbs * servingSize) / 100),
-      fats: Math.round((selectedFood.fats * servingSize) / 100),
+      calories: Math.round((selectedFood.nutrition.calories * servingSize) / baseServing),
+      protein: Math.round((selectedFood.nutrition.protein * servingSize) / baseServing),
+      carbs: Math.round((selectedFood.nutrition.carbs * servingSize) / baseServing),
+      fats: Math.round((selectedFood.nutrition.fats * servingSize) / baseServing),
     };
 
     return (
@@ -130,28 +127,13 @@ const SearchScreen = ({ navigation }) => {
           {/* Selected Food */}
           <View style={styles.card}>
             <Text style={styles.foodNameLarge}>{selectedFood.name}</Text>
+            <Text style={styles.sourceTag}>Source: {selectedFood.source || 'Database'}</Text>
 
             <View style={styles.nutritionGrid}>
-              <NutritionBox
-                label="Calories"
-                value={adjustedNutrition.calories}
-                unit="cal"
-              />
-              <NutritionBox
-                label="Protein"
-                value={adjustedNutrition.protein}
-                unit="g"
-              />
-              <NutritionBox
-                label="Carbs"
-                value={adjustedNutrition.carbs}
-                unit="g"
-              />
-              <NutritionBox
-                label="Fats"
-                value={adjustedNutrition.fats}
-                unit="g"
-              />
+              <NutritionBox label="Calories" value={adjustedNutrition.calories} unit="cal" />
+              <NutritionBox label="Protein" value={adjustedNutrition.protein} unit="g" />
+              <NutritionBox label="Carbs" value={adjustedNutrition.carbs} unit="g" />
+              <NutritionBox label="Fats" value={adjustedNutrition.fats} unit="g" />
             </View>
           </View>
 
@@ -225,7 +207,7 @@ const SearchScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Action Button */}
+          {/* Save Button */}
           <TouchableOpacity 
             style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
             onPress={saveMeal}
@@ -240,6 +222,7 @@ const SearchScreen = ({ navigation }) => {
     );
   }
 
+  // Search View
   return (
     <SafeAreaView style={styles.container}>
       {/* Search Bar */}
@@ -259,10 +242,26 @@ const SearchScreen = ({ navigation }) => {
         )}
       </View>
 
+      {/* Loading */}
+      {isSearching && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Searching...</Text>
+        </View>
+      )}
+
+      {/* Error */}
+      {searchError && (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={32} color={COLORS.error} />
+          <Text style={styles.errorText}>{searchError}</Text>
+        </View>
+      )}
+
       {/* Food List */}
       <FlatList
-        data={filteredFoods}
-        keyExtractor={(item) => item.name}
+        data={foods}
+        keyExtractor={(item, idx) => item._id || `${item.name}-${idx}`}
         renderItem={({ item }) => (
           <TouchableOpacity 
             style={styles.foodItem}
@@ -271,21 +270,28 @@ const SearchScreen = ({ navigation }) => {
             <View style={styles.foodItemContent}>
               <Text style={styles.foodItemName}>{item.name}</Text>
               <View style={styles.nutritionInfo}>
-                <Text style={styles.nutritionTag}>{item.calories} cal</Text>
-                <Text style={styles.nutritionTag}>{item.protein}g P</Text>
-                <Text style={styles.nutritionTag}>{item.carbs}g C</Text>
-                <Text style={styles.nutritionTag}>{item.fats}g F</Text>
+                <Text style={styles.nutritionTag}>{item.nutrition.calories} cal</Text>
+                <Text style={styles.nutritionTag}>{item.nutrition.protein}g P</Text>
+                <Text style={styles.nutritionTag}>{item.nutrition.carbs}g C</Text>
+                <Text style={styles.nutritionTag}>{item.nutrition.fats}g F</Text>
               </View>
+              <Text style={styles.sourceText}>from {item.source}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
           </TouchableOpacity>
         )}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="search" size={64} color={COLORS.textLight} />
-            <Text style={styles.emptyText}>No foods found</Text>
-          </View>
+          !isSearching && !searchError && (
+            <View style={styles.emptyState}>
+              <Ionicons name="search" size={64} color={COLORS.textLight} />
+              <Text style={styles.emptyText}>
+                {searchText.length < 2 
+                  ? 'Enter at least 2 characters to search'
+                  : 'No foods found'}
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>
@@ -324,6 +330,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: COLORS.textSecondary,
+    fontSize: 14,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    marginTop: 12,
+    color: COLORS.error,
+    fontSize: 14,
+    textAlign: 'center',
+  },
   listContent: {
     padding: 16,
     paddingTop: 0,
@@ -349,6 +374,7 @@ const styles = StyleSheet.create({
   nutritionInfo: {
     flexDirection: 'row',
     gap: 8,
+    marginBottom: 4,
   },
   nutritionTag: {
     fontSize: 12,
@@ -357,6 +383,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 4,
     color: COLORS.textSecondary,
+  },
+  sourceText: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    fontStyle: 'italic',
   },
   emptyState: {
     flex: 1,
@@ -368,6 +399,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
     marginTop: 16,
+    textAlign: 'center',
   },
   scrollContent: {
     padding: 20,
@@ -401,7 +433,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: COLORS.text,
+    marginBottom: 8,
+  },
+  sourceTag: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
     marginBottom: 20,
+    fontStyle: 'italic',
   },
   nutritionGrid: {
     flexDirection: 'row',

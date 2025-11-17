@@ -1,8 +1,12 @@
-// backend/src/routes/food.routes.js
 const express = require('express');
 const router = express.Router();
+const { verifyClerkToken } = require('../middleware/clerkAuth.middleware');
 const { searchFood } = require('../services/foodSearchService');
 
+/**
+ * Search for food
+ * GET /api/food/search?query=chicken
+ */
 router.get('/search', async (req, res) => {
   try {
     const { query } = req.query;
@@ -18,8 +22,9 @@ router.get('/search', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Food found',
-      data: result
+      message: 'Food search completed',
+      data: result.data,
+      source: result.source
     });
 
   } catch (error) {
