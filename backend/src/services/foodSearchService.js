@@ -4,11 +4,11 @@ const axios = require('axios');
 const USDA_API_KEY = process.env.USDA_API_KEY;
 
 /**
- * Search food - INDB (Indian recipes) FIRST, then USDA (global foods)
- * Results are merged with INDB items appearing first
+ * Search food - INDB + USDA merged by RELEVANCE (not by source priority)
+ * Results sorted by how well they match the search query
  * 
  * @param {string} query - Food name to search (e.g., "pav bhaji", "apple")
- * @returns {object} - Merged food data from both sources
+ * @returns {object} - Merged food data sorted by relevance
  */
 const searchFood = async (query) => {
   try {
@@ -25,34 +25,39 @@ const searchFood = async (query) => {
       searchUSDAFood(query),
     ]);
 
-    // Merge results: INDB first, then USDA
-    const mergedData = [];
+    // Combine results from both sources
+    const allFoods = [];
 
-    // Add INDB results (Indian recipes - prioritized)
+    // Add INDB results
     if (indbResults.success && indbResults.data.length > 0) {
-      console.log(`✅ Found ${indbResults.data.length} results in INDB (Indian Database)`);
-      mergedData.push(...indbResults.data);
+      console.log(`✅ Found ${indbResults.data.length} results in INDB`);
+      allFoods.push(...indbResults.data);
     }
 
-    // Add USDA results (Global foods)
+    // Add USDA results
     if (usdaResults.success && usdaResults.data.length > 0) {
       console.log(`✅ Found ${usdaResults.data.length} results in USDA`);
-      mergedData.push(...usdaResults.data);
+      allFoods.push(...usdaResults.data);
     }
 
     // If nothing found in either database
-    if (mergedData.length === 0) {
+    if (allFoods.length === 0) {
       throw new Error(`Food "${query}" not found in INDB or USDA databases`);
     }
 
     // Remove duplicates (same food from both sources)
-    const uniqueFoods = removeDuplicates(mergedData);
+    const uniqueFoods = removeDuplicates(allFoods);
+
+    // SORT BY RELEVANCE - THIS IS THE KEY FIX
+    const sortedByRelevance = sortByRelevance(uniqueFoods, query);
+
+    console.log(`📊 Total results (after dedup & sort): ${sortedByRelevance.length}`);
 
     return {
       success: true,
       source: 'merged',
-      count: uniqueFoods.length,
-      data: uniqueFoods,
+      count: sortedByRelevance.length,
+      data: sortedByRelevance,
     };
 
   } catch (error) {
@@ -62,14 +67,89 @@ const searchFood = async (query) => {
 };
 
 /**
+ * Sort foods by relevance to search query
+ * Exact match > Starts with query > Contains query > Partial match
+ */
+const sortByRelevance = (foods, query) => {
+  const queryLower = query.toLowerCase().trim();
+  const queryWords = queryLower.split(' ');
+
+  // Score each food based on how well it matches
+  const scoredFoods = foods.map(food => {
+    const nameLower = food.name.toLowerCase();
+    let score = 0;
+
+    // Exact match (highest priority) - score 1000
+    if (nameLower === queryLower) {
+      score = 1000;
+    }
+    // Exact match (ignoring case and punctuation) - score 900
+    else if (
+      nameLower.replace(/[^\w\s]/g, '') === queryLower.replace(/[^\w\s]/g, '')
+    ) {
+      score = 900;
+    }
+    // Starts with query - score 800
+    else if (nameLower.startsWith(queryLower)) {
+      score = 800;
+    }
+    // Contains query as whole word - score 600
+    else if (new RegExp(`\\b${queryLower}\\b`).test(nameLower)) {
+      score = 600;
+    }
+    // Starts with first word of query - score 400
+    else if (queryWords.length > 0 && nameLower.startsWith(queryWords[0])) {
+      score = 400;
+    }
+    // Contains first word of query - score 300
+    else if (queryWords.length > 0 && nameLower.includes(queryWords[0])) {
+      score = 300;
+    }
+    // Contains multiple words from query - score 200
+    else if (queryWords.filter(word => nameLower.includes(word)).length > 0) {
+      score = 200;
+    }
+    // Generic match - score 100
+    else {
+      score = 100;
+    }
+
+    // Bonus: INDB (Indian recipes) gets slight boost if it's an exact or high-confidence match
+    // This way Indian recipes appear first when it's actually what user wants
+    if (food.source === 'indb' && score >= 600) {
+      score += 50;
+    }
+
+    return {
+      ...food,
+      relevanceScore: score,
+    };
+  });
+
+  // Sort by relevance score (highest first)
+  const sorted = scoredFoods.sort((a, b) => {
+    // Sort by score descending
+    if (b.relevanceScore !== a.relevanceScore) {
+      return b.relevanceScore - a.relevanceScore;
+    }
+    // If same score, prioritize INDB (Indian recipes)
+    if (a.source === 'indb' && b.source !== 'indb') return -1;
+    if (b.source === 'indb' && a.source !== 'indb') return 1;
+    // Otherwise keep original order
+    return 0;
+  });
+
+  // Remove relevanceScore before returning (clean response)
+  return sorted.map(({ relevanceScore, ...rest }) => rest);
+};
+
+/**
  * Search INDB (Indian Database) in MongoDB
- * Searches local collection of 1000+ Indian recipes
  */
 const searchINDBFood = async (query) => {
   try {
     console.log(`   📚 Searching INDB for: "${query}"`);
 
-    // Case-insensitive search on name and alternate names
     const indbResults = await FoodDatabase.find({
       $or: [
         { name: { $regex: query, $options: 'i' } },
@@ -82,7 +162,6 @@ const searchINDBFood = async (query) => {
       return { success: false, data: [] };
     }
 
-    // Transform INDB data to standard format
     const foods = indbResults.map(food => ({
       name: food.name,
       servingSize: food.servingSize || 100,
@@ -115,11 +194,9 @@ const searchINDBFood = async (query) => {
 
 /**
  * Search USDA FoodData Central API
- * Queries USDA API for 400,000+ foods
  */
 const searchUSDAFood = async (query) => {
   try {
-    // Validate API key
     if (!USDA_API_KEY) {
       console.warn('⚠️ USDA_API_KEY not configured');
       return { success: false, data: [] };
@@ -127,7 +204,6 @@ const searchUSDAFood = async (query) => {
 
     console.log(`   🌐 Searching USDA for: "${query}"`);
 
-    // Call USDA API
     const response = await axios.get(
       'https://api.nal.usda.gov/fdc/v1/foods/search',
       {
@@ -140,13 +216,11 @@ const searchUSDAFood = async (query) => {
       }
     );
 
-    // Check if results exist
     if (!response.data.foods || response.data.foods.length === 0) {
       console.log(`   ⚠️ No USDA results found`);
       return { success: false, data: [] };
     }
 
-    // Transform USDA data to standard format
     const foods = response.data.foods.map(food => {
       const nutrients = food.foodNutrients || [];
       
@@ -181,7 +255,6 @@ const searchUSDAFood = async (query) => {
 
 /**
  * Remove duplicate foods from merged results
- * Compares by normalized name (case-insensitive)
  */
 const removeDuplicates = (foods) => {
   const seen = new Map();
@@ -190,7 +263,6 @@ const removeDuplicates = (foods) => {
   for (const food of foods) {
     const normalizedName = food.name.toLowerCase().trim();
     
-    // Keep first occurrence (INDB results appear first due to merge order)
     if (!seen.has(normalizedName)) {
       seen.set(normalizedName, true);
       unique.push(food);
