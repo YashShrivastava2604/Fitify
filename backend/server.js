@@ -118,6 +118,8 @@ app.use('/api/user', require('./src/routes/user.routes'));
 app.use('/api/meals', require('./src/routes/meal.routes'));
 app.use('/api/ml', require('./src/routes/ml.routes'));
 app.use('/api/chatbot', require('./src/routes/chatbot.routes'));
+app.use('/api/food', require('./src/routes/food.routes'));
+
 
 
 // 404 handler for undefined routes
