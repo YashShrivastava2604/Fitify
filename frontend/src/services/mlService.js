@@ -25,9 +25,9 @@ const prepareImage = async (uri) => {
 };
 
 /**
- * Recognize food from image using Clarifai
+ * Recognize food from image using Gemini (with nutrition)
  * @param {string} imageUri - Local image URI
- * @returns {Promise<Object>} - Food recognition result
+ * @returns {Promise<Object>} - Food recognition result with nutrition
  */
 export const recognizeFood = async (imageUri) => {
   try {
@@ -53,14 +53,21 @@ export const recognizeFood = async (imageUri) => {
 
     const result = response.data.data;
 
-    // Validate required fields
-    if (!result.food_name || !result.nutrition) {
-      throw new Error('Incomplete recognition data');
+    // Validate required fields for multi-dish
+    if (!result.dishes || !Array.isArray(result.dishes) || result.dishes.length === 0) {
+      throw new Error('No dishes recognized');
     }
 
-    console.log(`✅ Recognized: ${result.food_name} (confidence: ${Math.round(result.confidence * 100)}%)`);
+    // Validate each dish has nutrition
+    result.dishes.forEach(dish => {
+      if (!dish.nutrition) {
+        throw new Error(`Dish "${dish.name}" missing nutrition data`);
+      }
+    });
 
-    // Return ONLY the data object (unwrapped)
+    console.log(`✅ Recognized: ${result.is_multi_dish ? `${result.dishes.length} dishes` : result.dishes[0].name}`);
+
+    // Return the data object (unwrapped)
     return result;
 
   } catch (error) {
@@ -68,7 +75,8 @@ export const recognizeFood = async (imageUri) => {
     
     // Re-throw with user-friendly message
     if (error.response) {
-      throw new Error(error.response.data?.error || 'Recognition failed');
+      const errorMsg = error.response.data?.message || error.response.data?.error || 'Recognition failed';
+      throw new Error(errorMsg);
     } else if (error.message) {
       throw new Error(error.message);
     } else {
@@ -77,6 +85,38 @@ export const recognizeFood = async (imageUri) => {
   }
 };
 
+/**
+ * Search dishes from database (for manual add)
+ * @param {string} query - Search query
+ * @returns {Promise<Array>} - Search results
+ */
+export const searchDishes = async (query) => {
+  try {
+    if (!query || query.length < 2) {
+      return [];
+    }
+
+    console.log(`🔍 Searching dishes: "${query}"`);
+
+    const response = await api.get(`/api/ml/search?q=${encodeURIComponent(query)}`);
+
+    if (!response.data || !response.data.data) {
+      return [];
+    }
+
+    console.log(`✅ Found ${response.data.data.length} results`);
+
+    return response.data.data;
+
+  } catch (error) {
+    console.error('❌ Search dishes error:', error);
+    
+    // Don't throw - just return empty array
+    return [];
+  }
+};
+
 export default {
-  recognizeFood
+  recognizeFood,
+  searchDishes,
 };

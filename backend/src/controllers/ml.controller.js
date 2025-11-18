@@ -1,4 +1,4 @@
-const { recognizeFood } = require('../services/mlService');
+const { recognizeFood, searchDishes } = require('../services/mlService');
 const { successResponse, errorResponse } = require('../utils/responses');
 
 /**
@@ -21,7 +21,7 @@ const recognizeFoodImage = async (req, res) => {
       return errorResponse(res, 422, result.error, result.message);
     }
 
-    console.log(`✅ Recognized: ${result.food_name} (${result.source})`);
+    console.log(`✅ Recognized: ${result.is_multi_dish ? `${result.dishes.length} dishes` : result.dishes[0].name} (${result.source})`);
 
     return successResponse(res, 200, 'Food recognized', result);
 
@@ -31,6 +31,33 @@ const recognizeFoodImage = async (req, res) => {
   }
 };
 
+/**
+ * Search dishes from database
+ * GET /api/ml/search?q=query
+ */
+const searchDishesController = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.length < 2) {
+      return successResponse(res, 200, 'Search results', []);
+    }
+
+    console.log(`🔍 Searching dishes for: "${q}"`);
+
+    const results = await searchDishes(q, 20);
+
+    console.log(`✅ Found ${results.length} results`);
+
+    return successResponse(res, 200, 'Search results', results);
+
+  } catch (error) {
+    console.error('Search dishes error:', error);
+    return errorResponse(res, 500, 'Search failed', error.message);
+  }
+};
+
 module.exports = {
-  recognizeFoodImage
+  recognizeFoodImage,
+  searchDishesController,
 };
