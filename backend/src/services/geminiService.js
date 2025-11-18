@@ -21,7 +21,7 @@ const recognizeFoodWithGemini = async (base64Image) => {
       ? base64Image.split(',')[1]
       : base64Image;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
     const prompt = `You are an expert food recognition AI. Analyze this food image and provide:
 
