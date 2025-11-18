@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useFocusEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser, useAuth } from '@clerk/clerk-expo';
@@ -14,6 +15,8 @@ import { useProfileStore } from '../../stores/profileStore';
 import { useMealsStore } from '../../stores/mealsStore';
 import Loading from '../../components/common/Loading';
 import COLORS from '../../constants/colors';
+import { useFocusEffect as useNavFocusEffect } from '@react-navigation/native';
+
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useUser();
@@ -23,28 +26,40 @@ const HomeScreen = ({ navigation }) => {
 
   const { getToken } = useAuth();
 
+  // Check token on mount
   useEffect(() => {
     const checkToken = async () => {
       const token = await getToken();
       console.log('🔑 Current token:', token ? 'EXISTS' : 'NULL');
-      console.log('🔑 Token length:', token?.length);
     };
     
     checkToken();
   }, []);
 
+  // Load data on mount
   useEffect(() => {
     loadData();
   }, []);
 
+  // ✅ FIX: Refresh data whenever screen is focused (when returning from other screens)
+  useNavFocusEffect(
+    React.useCallback(() => {
+      console.log('📱 HomeScreen focused - refreshing data');
+      loadData();
+    }, [])
+  );
+
   const loadData = async () => {
     try {
+      console.log('🔄 Loading today\'s meals...');
       await fetchTodaysMeals();
     } catch (error) {
-      console.log('Failed to load meals:', error.message);
+      console.error('❌ Failed to load meals:', error.message);
+      Alert.alert('Error', 'Failed to load meals');
     }
   };
 
+  // ✅ FIX: Proper RefreshControl handler
   const onRefresh = async () => {
     setIsRefreshing(true);
     await loadData();
@@ -65,11 +80,15 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        // refreshControl={
-        //   <TouchableOpacity onPress={onRefresh}>
-        //     <Ionicons name="refresh" size={24} color={COLORS.primary} />
-        //   </TouchableOpacity>
-        // }
+        // ✅ FIX: Use proper RefreshControl component
+        refreshControl={
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -166,12 +185,12 @@ const HomeScreen = ({ navigation }) => {
             {todaysMeals.slice(0, 3).map((meal) => (
               <View key={meal._id} style={styles.mealRow}>
                 <View style={styles.mealInfo}>
-                  <Text style={styles.mealName}>{meal.food.name}</Text>
+                  <Text style={styles.mealName}>{meal.food?.name || 'Unknown'}</Text>
                   <Text style={styles.mealType}>
-                    {meal.mealType.charAt(0).toUpperCase() + meal.mealType.slice(1)} • {meal.food.servingSize}g
+                    {meal.mealType?.charAt(0).toUpperCase() + meal.mealType?.slice(1)} • {meal.food?.servingSize || 0}g
                   </Text>
                 </View>
-                <Text style={styles.mealCalories}>{meal.nutrition.calories} cal</Text>
+                <Text style={styles.mealCalories}>{meal.nutrition?.calories || 0} cal</Text>
               </View>
             ))}
 
@@ -182,6 +201,19 @@ const HomeScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+
+        {/* No Meals Message */}
+        {(!todaysMeals || todaysMeals.length === 0) && (
+          <View style={styles.card}>
+            <Text style={styles.noMealsText}>No meals logged yet</Text>
+            <TouchableOpacity 
+              style={styles.addMealButton}
+              onPress={() => navigation.navigate('Search')}
+            >
+              <Text style={styles.addMealText}>Add your first meal</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -238,8 +270,8 @@ const HomeScreen = ({ navigation }) => {
             />
             <StatItem
               label="BMI"
-              value={profile.bmi?.toFixed(1)}
-              unit={profile.bmiCategory}
+              value={profile.bmi?.toFixed(1) || '0'}
+              unit={profile.bmiCategory || '-'}
               icon="heart-outline"
             />
             <StatItem
@@ -465,6 +497,23 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '600',
     marginTop: 12,
+  },
+  noMealsText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  addMealButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addMealText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '600',
   },
   actionsContainer: {
     flexDirection: 'row',

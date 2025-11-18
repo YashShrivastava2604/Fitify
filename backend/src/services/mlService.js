@@ -1,34 +1,59 @@
-const axios = require('axios');
-const FoodDatabase = require('../models/FoodDatabase'); // Mongoose model
+const FoodDatabase = require('../models/FoodDatabase');
+const { recognizeFoodWithGemini } = require('./geminiService');
 
-// Configuration
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 const CLARIFAI_PAT = process.env.CLARIFAI_API_KEY;
-const CONFIDENCE_THRESHOLD = 0.7;
 
 /**
- * Hybrid ML Recognition
+ * Recognize food - Gemini Primary + Clarifai Fallback
  */
 const recognizeFood = async (base64Image) => {
   let result = null;
-  let source = 'clarifai';
+  let source = 'gemini';
 
-  console.log('🔍 Using Clarifai API...');
+  console.log('🍽️ Starting food recognition with Gemini...');
 
   try {
-    const clarifaiResult = await callClarifaiAPI(base64Image);
-    result = clarifaiResult;
-    source = 'clarifai';
-  } catch (error) {
-    console.error('❌ Clarifai failed:', error.message);
-    return {
-      success: false,
-      error: 'Recognition failed',
-      message: 'Could not recognize food. Please try again or enter manually.'
-    };
+    // Step 1: Try Gemini first (better for Indian food)
+    console.log('  1️⃣ Trying Gemini Pro Vision...');
+    result = await recognizeFoodWithGemini(base64Image);
+    source = 'gemini';
+    console.log(`  ✅ Gemini found: ${result.food_name} (${(result.confidence * 100).toFixed(0)}%)`);
+
+    // If Gemini confidence is too low, try Clarifai as fallback
+    if (result.confidence < 0.5 && CLARIFAI_PAT) {
+      console.log('  ⚠️ Gemini confidence low, trying Clarifai fallback...');
+      try {
+        const clarifaiResult = await callClarifaiAPI(base64Image);
+        console.log(`  ✅ Clarifai found: ${clarifaiResult.food_name} (${(clarifaiResult.confidence * 100).toFixed(0)}%)`);
+        
+        // Use Clarifai if confidence is higher
+        if (clarifaiResult.confidence > result.confidence) {
+          result = clarifaiResult;
+          source = 'clarifai';
+        }
+      } catch (clarifaiError) {
+        console.log('  ⚠️ Clarifai fallback failed, using Gemini result');
+      }
+    }
+
+  } catch (geminiError) {
+    console.log('  ❌ Gemini failed, trying Clarifai...');
+    
+    if (CLARIFAI_PAT) {
+      try {
+        result = await callClarifaiAPI(base64Image);
+        source = 'clarifai';
+        console.log(`  ✅ Clarifai found: ${result.food_name}`);
+      } catch (clarifaiError) {
+        console.error('  ❌ Both APIs failed');
+        throw new Error('Food recognition failed');
+      }
+    } else {
+      throw new Error('Gemini failed and Clarifai not configured');
+    }
   }
 
-  // Get nutrition data asynchronously from MongoDB
+  // Get nutrition data
   const nutrition = await getNutritionData(result.food_name);
 
   return {
@@ -37,20 +62,21 @@ const recognizeFood = async (base64Image) => {
     confidence: result.confidence,
     nutrition: nutrition,
     source: source,
-    alternatives: result.alternatives || []
+    alternatives: result.alternatives || [],
   };
 };
 
 /**
- * Call Clarifai API (fallback)
+ * Clarifai API (fallback only)
  */
 const callClarifaiAPI = async (base64Image) => {
   if (!CLARIFAI_PAT) {
     throw new Error('Clarifai API key not configured');
   }
 
-  const base64Data = base64Image.includes(',') 
-    ? base64Image.split(',')[1] 
+  const axios = require('axios');
+  const base64Data = base64Image.includes(',')
+    ? base64Image.split(',')[1]
     : base64Image;
 
   const response = await axios.post(
@@ -94,29 +120,28 @@ const callClarifaiAPI = async (base64Image) => {
 const getNutritionData = async (foodName) => {
   if (!foodName) return defaultNutrition();
 
-  // Normalize key
-  const key = foodName.toLowerCase().replace(/[^a-z]/g, '');
+  try {
+    const exactMatch = await FoodDatabase.findOne({
+      $text: { $search: `"${foodName}"` }
+    });
 
-  // Exact match using text index
-  const exactMatch = await FoodDatabase.findOne({
-    $text: { $search: `"${foodName}"` }
-  });
+    if (exactMatch) {
+      return exactMatch.nutrition;
+    }
 
-  if (exactMatch) {
-    return exactMatch.nutrition;
+    const regex = new RegExp(foodName, 'i');
+    const partialMatch = await FoodDatabase.findOne({ name: regex });
+
+    if (partialMatch) {
+      return partialMatch.nutrition;
+    }
+
+    console.log(`⚠️ No nutrition data for: ${foodName}, using default`);
+    return defaultNutrition();
+  } catch (error) {
+    console.error('Error getting nutrition:', error);
+    return defaultNutrition();
   }
-
-  // Partial fallback search 
-  const regex = new RegExp(key, 'i');
-  const partialMatch = await FoodDatabase.findOne({ name: regex });
-
-  if (partialMatch) {
-    return partialMatch.nutrition;
-  }
-
-  console.log(`⚠️ No nutrition data for: ${foodName}, using default`);
-
-  return defaultNutrition();
 };
 
 const defaultNutrition = () => ({
@@ -129,5 +154,4 @@ const defaultNutrition = () => ({
 
 module.exports = {
   recognizeFood,
-  getNutritionData
 };

@@ -6,12 +6,23 @@ import { useProfileStore } from '../stores/profileStore';
 import { setAuthToken } from '../services/api';
 import Loading from '../components/common/Loading';
 
+// Auth Screens
+import OnboardingScreen from '../screens/auth/OnboardingScreen';
+
+// Tab & Main Screens
+import TabNavigator from './TabNavigator';
+
+// Modal Screens - Scan
 import FoodResultScreen from '../screens/scan/FoodResultScreen';
+
+// Modal Screens - Other
 import ChatbotScreen from '../screens/chatbot/ChatbotScreen';
 import SearchScreen from '../screens/search/SearchScreen';
+
+// ✅ Profile Screens - NEW IMPORTS
 import ProgressScreen from '../screens/progress/ProgressScreen';
-import TabNavigator from './TabNavigator';
-import OnboardingScreen from '../screens/auth/OnboardingScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import UpdateGoalsScreen from '../screens/profile/UpdateGoalsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,7 +72,7 @@ const AppNavigator = () => {
       if (!tokenSynced || hasAttemptedFetch) return;
       
       if (!isSignedIn) {
-        console.log('⚠️  User not signed in, skipping profile fetch');
+        console.log('⚠️ User not signed in, skipping profile fetch');
         setHasAttemptedFetch(true);
         return;
       }
@@ -84,7 +95,7 @@ const AppNavigator = () => {
         console.log('═══════════════════════════════');
         
       } catch (error) {
-        console.log('⚠️  Profile not found or error loading');
+        console.log('⚠️ Profile not found or error loading');
         console.error('Profile fetch error:', error.message);
       }
     };
@@ -161,7 +172,7 @@ const AppNavigator = () => {
           />
         )}
         
-        {/* Modal screens - accessible from any tab */}
+        {/* ✅ Modal Screens - Scan Flow */}
         <Stack.Screen 
           name="FoodResult" 
           component={FoodResultScreen}
@@ -169,6 +180,8 @@ const AppNavigator = () => {
             presentation: 'modal',
           }}
         />
+
+        {/* ✅ Modal Screens - Chat & Search */}
         <Stack.Screen 
           name="Chatbot" 
           component={ChatbotScreen}
@@ -176,6 +189,7 @@ const AppNavigator = () => {
             presentation: 'modal',
           }}
         />
+        
         <Stack.Screen 
           name="Search" 
           component={SearchScreen}
@@ -183,9 +197,31 @@ const AppNavigator = () => {
             presentation: 'modal',
           }}
         />
+
+        {/* ✅ Modal Screens - Profile Flow (NEW) */}
+        
+        {/* Progress & Statistics Screen */}
         <Stack.Screen 
           name="Progress" 
           component={ProgressScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+
+        {/* Edit Profile Screen */}
+        <Stack.Screen 
+          name="EditProfile" 
+          component={EditProfileScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+
+        {/* Update Goals Screen */}
+        <Stack.Screen 
+          name="UpdateGoals" 
+          component={UpdateGoalsScreen}
           options={{
             presentation: 'modal',
           }}

@@ -7,9 +7,11 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart, BarChart } from 'react-native-chart-kit';
+import { useMealsStore } from '../../stores/mealsStore';
 import { useProfileStore } from '../../stores/profileStore';
 import Loading from '../../components/common/Loading';
 import COLORS from '../../constants/colors';
@@ -18,60 +20,156 @@ const { width } = Dimensions.get('window');
 const chartWidth = width - 40;
 
 const ProgressScreen = ({ navigation }) => {
-  const { profile, stats, fetchStats, isLoading } = useProfileStore();
-  const [timeRange, setTimeRange] = useState('30'); // 7, 30, 90 days
+  const { profile, stats, fetchStats, isLoading: profileLoading } = useProfileStore();
+  const { fetchMealsByDate } = useMealsStore();
+  const [timeRange, setTimeRange] = useState('7');
+  const [weightTrendData, setWeightTrendData] = useState([]);
+  const [calorieIntakeData, setCalorieIntakeData] = useState([]);
+  const [weeklyLabels, setWeeklyLabels] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Load stats on mount
   useEffect(() => {
-    loadData();
+    loadStats();
+  }, []);
+
+  // Load meal data when timeRange changes (with debounce to avoid rate limiting)
+  useEffect(() => {
+    loadMealData();
   }, [timeRange]);
 
-  const loadData = async () => {
+  const loadStats = async () => {
     try {
+      console.log('📊 ProgressScreen: Loading stats...');
       await fetchStats();
+      console.log('✅ Stats loaded');
     } catch (error) {
-      console.log('Failed to load stats:', error);
+      console.error('❌ Failed to load stats:', error);
     }
   };
 
-  if (isLoading || !profile || !stats) {
+  const loadMealData = async () => {
+    setIsLoading(true);
+    try {
+      const days = parseInt(timeRange);
+      const calorieData = [];
+      const labels = [];
+
+      console.log(`📊 ProgressScreen: Loading meal data for ${days} days...`);
+
+      // ✅ FIX: Load meals sequentially with delays to avoid rate limiting
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        
+        try {
+          // Add small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          const mealResult = await fetchMealsByDate(date);
+          const dailyCalories = mealResult?.totals?.calories || 0;
+          
+          calorieData.push(dailyCalories);
+          
+          // Add label
+          if (days <= 7) {
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            labels.push(dayNames[date.getDay()]);
+          } else {
+            labels.push(`${date.getDate()}`);
+          }
+
+          console.log(`  📅 ${date.toISOString().split('T')[0]}: ${dailyCalories} cal`);
+        } catch (dayError) {
+          console.error(`  ⚠️ Error loading meal for ${date.toISOString().split('T')[0]}:`, dayError.message);
+          calorieData.push(0);
+          
+          if (days <= 7) {
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            labels.push(dayNames[date.getDay()]);
+          } else {
+            labels.push(`${date.getDate()}`);
+          }
+        }
+      }
+
+      setCalorieIntakeData(calorieData);
+      setWeeklyLabels(labels);
+
+      console.log('✅ Meal data loaded:', {
+        days,
+        totalCals: calorieData.reduce((a, b) => a + b, 0),
+        calorieData,
+        labels,
+      });
+    } catch (error) {
+      console.error('❌ Error loading meal data:', error);
+      // Set empty data if error
+      const days = parseInt(timeRange);
+      setCalorieIntakeData(Array(days).fill(0));
+      setWeeklyLabels(Array(days).fill(''));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Process weight history data from stats
+  useEffect(() => {
+    if (stats && stats.weightHistory && stats.weightHistory.length > 0) {
+      const days = parseInt(timeRange);
+      const weightData = [];
+
+      const recentWeights = stats.weightHistory.slice(-days);
+      
+      recentWeights.forEach((entry) => {
+        weightData.push(entry.weight);
+      });
+
+      setWeightTrendData(weightData);
+
+      console.log('✅ Processed weight data:', {
+        days,
+        weightHistory: stats.weightHistory.length,
+        recentWeights: weightData,
+      });
+    }
+  }, [stats, timeRange]);
+
+  if (profileLoading || !profile || !stats) {
     return <Loading text="Loading progress..." />;
   }
-
-  // Generate mock data for charts (replace with real API data later)
-  const generateWeightData = () => {
-    const days = parseInt(timeRange);
-    const data = [];
-    const startWeight = profile.currentWeight - 1;
-    
-    for (let i = 0; i < days; i++) {
-      data.push(startWeight + (Math.random() - 0.5) * 0.5);
-    }
-    return data;
-  };
-
-  const generateCalorieData = () => {
-    const days = parseInt(timeRange);
-    const data = [];
-    
-    for (let i = 0; i < days; i++) {
-      data.push(Math.floor(profile.dailyCalorieTarget + (Math.random() - 0.5) * 500));
-    }
-    return data;
-  };
-
-  const weightData = generateWeightData();
-  const calorieData = generateCalorieData();
 
   const currentWeight = profile.currentWeight;
   const startWeight = stats.weightHistory && stats.weightHistory.length > 0
     ? stats.weightHistory[0].weight
     : profile.currentWeight;
   const weightChange = currentWeight - startWeight;
-  const weightChangePercent = ((weightChange / startWeight) * 100).toFixed(1);
+  const weightChangePercent = startWeight !== 0 ? ((weightChange / startWeight) * 100).toFixed(1) : '0';
+
+  // Calculate average daily calories
+  const avgDailyCalories = calorieIntakeData.length > 0
+    ? Math.round(calorieIntakeData.reduce((a, b) => a + b, 0) / calorieIntakeData.length)
+    : 0;
+
+  // Prepare chart data
+  const chartWeightData = weightTrendData.length > 0
+    ? weightTrendData
+    : Array(parseInt(timeRange)).fill(profile.currentWeight);
+
+  const chartCalorieData = calorieIntakeData.length > 0
+    ? calorieIntakeData.slice(0, 7)
+    : Array(7).fill(0);
+
+  const chartWeeklyLabels = weeklyLabels.length > 0
+    ? weeklyLabels.slice(0, 7)
+    : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -80,6 +178,13 @@ const ProgressScreen = ({ navigation }) => {
           <Text style={styles.headerTitle}>Progress Tracking</Text>
           <View style={{ width: 24 }} />
         </View>
+
+        {/* Loading Indicator */}
+        {isLoading && (
+          <View style={styles.loadingBar}>
+            <Text style={styles.loadingText}>Loading meal data...</Text>
+          </View>
+        )}
 
         {/* Goal Progress Card */}
         <View style={styles.card}>
@@ -99,6 +204,9 @@ const ProgressScreen = ({ navigation }) => {
                 ]}>
                   {weightChange < 0 ? 'Great progress!' : 'Keep going!'}
                 </Text>
+                <Text style={styles.goalPercent}>
+                  {weightChangePercent}% of starting weight
+                </Text>
               </View>
             </View>
           )}
@@ -117,6 +225,27 @@ const ProgressScreen = ({ navigation }) => {
                 ]}>
                   {weightChange > 0 ? 'On track!' : 'Increase intake!'}
                 </Text>
+                <Text style={styles.goalPercent}>
+                  {weightChangePercent}% of starting weight
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {profile.goal === 'maintain' && (
+            <View style={styles.goalSection}>
+              <Text style={styles.goalLabel}>Weight Maintenance</Text>
+              <View style={styles.goalProgress}>
+                <View style={styles.goalValue}>
+                  <Text style={styles.goalNumber}>±{Math.abs(weightChange).toFixed(1)}</Text>
+                  <Text style={styles.goalUnit}>kg</Text>
+                </View>
+                <Text style={[
+                  styles.goalSubtext,
+                  { color: Math.abs(weightChange) < 2 ? COLORS.success : COLORS.warning }
+                ]}>
+                  {Math.abs(weightChange) < 2 ? 'Weight stable!' : 'Slight variation'}
+                </Text>
               </View>
             </View>
           )}
@@ -129,8 +258,8 @@ const ProgressScreen = ({ navigation }) => {
             />
             <StatBox
               label="BMI"
-              value={profile.bmi?.toFixed(1)}
-              unit={profile.bmiCategory}
+              value={profile.bmi?.toFixed(1) || '0'}
+              unit={profile.bmiCategory || '-'}
             />
           </View>
         </View>
@@ -159,96 +288,162 @@ const ProgressScreen = ({ navigation }) => {
             ))}
           </View>
 
-          <LineChart
-            data={{
-              labels: Array(parseInt(timeRange)).fill(''),
-              datasets: [
-                {
-                  data: weightData
+          {chartWeightData.length > 0 ? (
+            <LineChart
+              data={{
+                labels: Array(parseInt(timeRange)).fill(''),
+                datasets: [
+                  {
+                    data: chartWeightData,
+                  }
+                ]
+              }}
+              width={chartWidth}
+              height={220}
+              chartConfig={{
+                backgroundColor: COLORS.white,
+                backgroundGradientFrom: COLORS.white,
+                backgroundGradientTo: COLORS.white,
+                decimalPlaces: 1,
+                color: () => COLORS.primary,
+                labelColor: () => COLORS.textSecondary,
+                propsForDots: {
+                  r: '4',
+                  strokeWidth: '2',
+                  stroke: COLORS.primary
                 }
-              ]
-            }}
-            width={chartWidth}
-            height={220}
-            chartConfig={{
-              backgroundColor: COLORS.white,
-              backgroundGradientFrom: COLORS.white,
-              backgroundGradientTo: COLORS.white,
-              decimalPlaces: 1,
-              color: () => COLORS.primary,
-              labelColor: () => COLORS.textSecondary,
-              propsForDots: {
-                r: '4',
-                strokeWidth: '2',
-                stroke: COLORS.primary
-              }
-            }}
-            style={styles.chart}
-          />
-        </View>
-
-        {/* Daily Calorie Chart */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Daily Calorie Intake</Text>
-
-          <BarChart
-            data={{
-              labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-              datasets: [
-                {
-                  data: calorieData.slice(0, 7)
-                }
-              ]
-            }}
-            width={chartWidth}
-            height={220}
-            chartConfig={{
-              backgroundColor: COLORS.white,
-              backgroundGradientFrom: COLORS.white,
-              backgroundGradientTo: COLORS.white,
-              decimalPlaces: 0,
-              color: () => COLORS.primary,
-              labelColor: () => COLORS.textSecondary,
-              barPercentage: 0.7
-            }}
-            style={styles.chart}
-          />
-
-          <View style={styles.calorieReference}>
-            <View style={styles.referenceItem}>
-              <View style={[styles.referenceDot, { backgroundColor: COLORS.primary }]} />
-              <Text style={styles.referenceText}>Actual intake</Text>
+              }}
+              style={styles.chart}
+            />
+          ) : (
+            <View style={styles.emptyChart}>
+              <Ionicons name="bar-chart-outline" size={48} color={COLORS.textLight} />
+              <Text style={styles.emptyChartText}>No weight data available</Text>
             </View>
-            <View style={styles.referenceItem}>
-              <View style={[styles.referenceDot, { backgroundColor: COLORS.info }]} />
-              <Text style={styles.referenceText}>Target: {profile.dailyCalorieTarget} cal</Text>
+          )}
+
+          <View style={styles.weightStats}>
+            <View style={styles.weightStatItem}>
+              <Text style={styles.weightStatLabel}>Highest</Text>
+              <Text style={styles.weightStatValue}>
+                {stats.weightHistory && stats.weightHistory.length > 0
+                  ? Math.max(...stats.weightHistory.map(w => w.weight)).toFixed(1)
+                  : currentWeight}
+                <Text style={styles.weightStatUnit}> kg</Text>
+              </Text>
+            </View>
+            <View style={styles.weightStatItem}>
+              <Text style={styles.weightStatLabel}>Lowest</Text>
+              <Text style={styles.weightStatValue}>
+                {stats.weightHistory && stats.weightHistory.length > 0
+                  ? Math.min(...stats.weightHistory.map(w => w.weight)).toFixed(1)
+                  : currentWeight}
+                <Text style={styles.weightStatUnit}> kg</Text>
+              </Text>
+            </View>
+            <View style={styles.weightStatItem}>
+              <Text style={styles.weightStatLabel}>Average</Text>
+              <Text style={styles.weightStatValue}>
+                {stats.weightHistory && stats.weightHistory.length > 0
+                  ? (stats.weightHistory.reduce((a, b) => a + b.weight, 0) / stats.weightHistory.length).toFixed(1)
+                  : currentWeight}
+                <Text style={styles.weightStatUnit}> kg</Text>
+              </Text>
             </View>
           </View>
         </View>
 
+        {/* Daily Calorie Chart */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Daily Calorie Intake (Last 7 Days)</Text>
+
+          {chartCalorieData.some(cal => cal > 0) ? (
+            <>
+              <BarChart
+                data={{
+                  labels: chartWeeklyLabels,
+                  datasets: [
+                    {
+                      data: chartCalorieData,
+                    }
+                  ]
+                }}
+                width={chartWidth}
+                height={220}
+                chartConfig={{
+                  backgroundColor: COLORS.white,
+                  backgroundGradientFrom: COLORS.white,
+                  backgroundGradientTo: COLORS.white,
+                  decimalPlaces: 0,
+                  color: () => COLORS.primary,
+                  labelColor: () => COLORS.textSecondary,
+                  barPercentage: 0.7
+                }}
+                style={styles.chart}
+              />
+
+              <View style={styles.calorieStats}>
+                <View style={styles.calorieStatItem}>
+                  <Text style={styles.calorieStatLabel}>Avg Daily</Text>
+                  <Text style={styles.calorieStatValue}>{avgDailyCalories}</Text>
+                  <Text style={styles.calorieStatUnit}>cal</Text>
+                </View>
+                <View style={styles.calorieStatItem}>
+                  <Text style={styles.calorieStatLabel}>Target</Text>
+                  <Text style={styles.calorieStatValue}>{profile.dailyCalorieTarget}</Text>
+                  <Text style={styles.calorieStatUnit}>cal</Text>
+                </View>
+                <View style={styles.calorieStatItem}>
+                  <Text style={styles.calorieStatLabel}>Diff</Text>
+                  <Text style={[
+                    styles.calorieStatValue,
+                    { color: avgDailyCalories <= profile.dailyCalorieTarget ? COLORS.success : COLORS.warning }
+                  ]}>
+                    {Math.abs(avgDailyCalories - profile.dailyCalorieTarget)}
+                  </Text>
+                  <Text style={styles.calorieStatUnit}>cal</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <View style={styles.emptyChart}>
+              <Ionicons name="nutrition-outline" size={48} color={COLORS.textLight} />
+              <Text style={styles.emptyChartText}>No meal data available</Text>
+              <Text style={styles.emptyChartSubtext}>Log some meals to see trends</Text>
+            </View>
+          )}
+        </View>
+
         {/* Macro Distribution */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Macro Targets</Text>
+          <Text style={styles.cardTitle}>Daily Macro Targets</Text>
 
           <View style={styles.macroTargets}>
             <MacroBar
               label="Protein"
-              value={profile.macroTargets.protein}
+              value={profile.macroTargets?.protein || 0}
               color={COLORS.protein}
               icon="fitness-outline"
             />
             <MacroBar
               label="Carbs"
-              value={profile.macroTargets.carbs}
+              value={profile.macroTargets?.carbs || 0}
               color={COLORS.carbs}
               icon="leaf-outline"
             />
             <MacroBar
               label="Fats"
-              value={profile.macroTargets.fats}
+              value={profile.macroTargets?.fats || 0}
               color={COLORS.fats}
               icon="water-outline"
             />
+          </View>
+
+          <View style={styles.macroCalcNote}>
+            <Ionicons name="information-circle-outline" size={16} color={COLORS.info} />
+            <Text style={styles.macroCalcText}>
+              Based on {profile.dailyCalorieTarget} cal/day and {profile.goal} goal
+            </Text>
           </View>
         </View>
 
@@ -260,27 +455,63 @@ const ProgressScreen = ({ navigation }) => {
             <MetricItem
               icon="heart-outline"
               label="BMR"
-              value={profile.bmr?.toFixed(0)}
+              value={profile.bmr?.toFixed(0) || '0'}
               unit="cal/day"
+              description="Resting metabolic rate"
             />
             <MetricItem
               icon="flame-outline"
               label="TDEE"
-              value={profile.tdee?.toFixed(0)}
+              value={profile.tdee?.toFixed(0) || '0'}
               unit="cal/day"
+              description="Total daily energy"
             />
             <MetricItem
               icon="body-outline"
               label="Height"
-              value={profile.height}
+              value={profile.height || '0'}
               unit="cm"
+              description="Body height"
             />
             <MetricItem
               icon="activity-outline"
-              label="Activity Level"
-              value={profile.activityLevel.replace('_', ' ').toUpperCase().slice(0, 3)}
+              label="Activity"
+              value={(profile.activityLevel || 'moderate').replace(/_/g, ' ').toUpperCase().slice(0, 3)}
               unit=""
+              description="Exercise frequency"
             />
+          </View>
+
+          <View style={styles.metricsNote}>
+            <Text style={styles.metricsNoteText}>
+              These metrics help calculate your personalized nutrition targets.
+            </Text>
+          </View>
+        </View>
+
+        {/* Summary Stats */}
+        <View style={[styles.card, styles.summaryCard]}>
+          <Text style={styles.summaryTitle}>📊 This Period Summary</Text>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Days Tracked</Text>
+              <Text style={styles.summaryValue}>
+                {Math.min(stats.weightHistory?.length || 0, parseInt(timeRange))}
+              </Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Weight Change</Text>
+              <Text style={[
+                styles.summaryValue,
+                { color: weightChange < 0 && profile.goal === 'lose' ? COLORS.success : COLORS.primary }
+              ]}>
+                {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)} kg
+              </Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Avg Calories</Text>
+              <Text style={styles.summaryValue}>{avgDailyCalories}</Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -306,13 +537,14 @@ const MacroBar = ({ label, value, color, icon }) => (
   </View>
 );
 
-const MetricItem = ({ icon, label, value, unit }) => (
+const MetricItem = ({ icon, label, value, unit, description }) => (
   <View style={styles.metricItem}>
     <Ionicons name={icon} size={24} color={COLORS.primary} />
     <Text style={styles.metricLabel}>{label}</Text>
     <Text style={styles.metricValue}>
-      {value} <Text style={styles.metricUnit}>{unit}</Text>
+      {value}<Text style={styles.metricUnit}>{unit}</Text>
     </Text>
+    <Text style={styles.metricDescription}>{description}</Text>
   </View>
 );
 
@@ -336,11 +568,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
   },
+  loadingBar: {
+    backgroundColor: `${COLORS.primary}20`,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
   card: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardTitle: {
     fontSize: 18,
@@ -376,6 +626,11 @@ const styles = StyleSheet.create({
   goalSubtext: {
     fontSize: 14,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  goalPercent: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -434,25 +689,73 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     marginHorizontal: -20,
   },
-  calorieReference: {
-    flexDirection: 'row',
+  emptyChart: {
+    height: 200,
     justifyContent: 'center',
-    gap: 20,
-    marginTop: 12,
-  },
-  referenceItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    backgroundColor: COLORS.backgroundGray,
+    borderRadius: 12,
+    marginVertical: 8,
   },
-  referenceDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  emptyChartText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 8,
   },
-  referenceText: {
+  emptyChartSubtext: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginTop: 4,
+  },
+  weightStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  weightStatItem: {
+    alignItems: 'center',
+  },
+  weightStatLabel: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  weightStatValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  weightStatUnit: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: 'normal',
+  },
+  calorieStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  calorieStatItem: {
+    alignItems: 'center',
+  },
+  calorieStatLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  calorieStatValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
+  calorieStatUnit: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   macroTargets: {
     gap: 12,
@@ -477,6 +780,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
   },
+  macroCalcNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${COLORS.info}10`,
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  macroCalcText: {
+    fontSize: 12,
+    color: COLORS.info,
+    flex: 1,
+  },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -485,7 +802,7 @@ const styles = StyleSheet.create({
   metricItem: {
     width: '48%',
     backgroundColor: COLORS.backgroundGray,
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
@@ -493,8 +810,8 @@ const styles = StyleSheet.create({
   metricLabel: {
     fontSize: 12,
     color: COLORS.textSecondary,
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 6,
+    marginBottom: 2,
   },
   metricValue: {
     fontSize: 16,
@@ -502,9 +819,55 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   metricUnit: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'normal',
     color: COLORS.textSecondary,
   },
+  metricDescription: {
+    fontSize: 10,
+    color: COLORS.textLight,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  metricsNote: {
+    backgroundColor: `${COLORS.info}10`,
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  metricsNoteText: {
+    fontSize: 12,
+    color: COLORS.info,
+    textAlign: 'center',
+  },
+  summaryCard: {
+    backgroundColor: `${COLORS.primary}10`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}30`,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 12,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+  },
 });
+
 export default ProgressScreen;

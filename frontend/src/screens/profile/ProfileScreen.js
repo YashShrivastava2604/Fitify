@@ -8,7 +8,6 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useProfileStore } from '../../stores/profileStore';
@@ -21,6 +20,18 @@ const ProfileScreen = ({ navigation }) => {
   const { user } = useUser();
   const { profile, fetchProfile, isLoading } = useProfileStore();
 
+  // Load profile data on mount
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      await fetchProfile();
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -74,7 +85,10 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -92,7 +106,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.statsContainer}>
           <StatCard label="Current Weight" value={profile.currentWeight} unit="kg" />
           <StatCard label="Height" value={profile.height} unit="cm" />
-          <StatCard label="BMI" value={profile.bmi} unit="" />
+          <StatCard label="BMI" value={profile.bmi?.toFixed(1) || '0'} unit="" />
           <StatCard label="Age" value={profile.age} unit="years" />
         </View>
 
@@ -114,7 +128,7 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.goalItem}>
             <Text style={styles.goalLabel}>Activity Level</Text>
             <Text style={styles.goalValue}>
-              {profile.activityLevel.replace('_', ' ')}
+              {profile.activityLevel?.replace(/_/g, ' ').toUpperCase() || 'Not Set'}
             </Text>
           </View>
         </View>
@@ -125,19 +139,19 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.macroRow}>
             <View style={styles.macroCard}>
               <Text style={[styles.macroValue, { color: COLORS.protein }]}>
-                {profile.macroTargets.protein}g
+                {profile.macroTargets?.protein || 0}g
               </Text>
               <Text style={styles.macroLabel}>Protein</Text>
             </View>
             <View style={styles.macroCard}>
               <Text style={[styles.macroValue, { color: COLORS.carbs }]}>
-                {profile.macroTargets.carbs}g
+                {profile.macroTargets?.carbs || 0}g
               </Text>
               <Text style={styles.macroLabel}>Carbs</Text>
             </View>
             <View style={styles.macroCard}>
               <Text style={[styles.macroValue, { color: COLORS.fats }]}>
-                {profile.macroTargets.fats}g
+                {profile.macroTargets?.fats || 0}g
               </Text>
               <Text style={styles.macroLabel}>Fats</Text>
             </View>
@@ -146,34 +160,29 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* Options */}
         <View style={styles.card}>
+          {/* ✅ FIXED: Wire up to navigation */}
           <ProfileOption
             icon="create-outline"
             title="Edit Profile"
             subtitle="Update your personal information"
-            onPress={() => Alert.alert('Coming Soon', 'Edit profile feature will be available in Phase 3')}
+            onPress={() => navigation.navigate('EditProfile')}
             color={COLORS.primary}
           />
           <ProfileOption
             icon="fitness-outline"
             title="Update Goals"
             subtitle="Change your weight and activity goals"
-            onPress={() => Alert.alert('Coming Soon', 'Update goals feature will be available in Phase 3')}
+            onPress={() => navigation.navigate('UpdateGoals')}
             color={COLORS.secondary}
           />
           <ProfileOption
             icon="stats-chart-outline"
             title="Progress & Statistics"
             subtitle="View your weight and nutrition trends"
-            onPress={() => Alert.alert('Coming Soon', 'Stats feature will be available in Phase 3')}
+            onPress={() => navigation.navigate('Progress')}
             color={COLORS.info}
           />
-          <ProfileOption
-            icon="settings-outline"
-            title="Settings"
-            subtitle="App preferences and notifications"
-            onPress={() => Alert.alert('Coming Soon', 'Settings will be available in Phase 3')}
-            color={COLORS.textSecondary}
-          />
+          {/* ✅ Removed Settings - as requested */}
         </View>
 
         {/* Sign Out Button */}
@@ -197,6 +206,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
@@ -228,6 +238,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statValue: {
     fontSize: 28,
@@ -249,6 +264,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardTitle: {
     fontSize: 18,
