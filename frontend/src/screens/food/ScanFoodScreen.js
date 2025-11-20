@@ -54,57 +54,46 @@ const ScanFoodScreen = ({ navigation }) => {
   };
 
   const processImage = async () => {
-  setIsProcessing(true);
-  
-  try {
-    console.log('🔍 Calling ML service...');
-    const response = await recognizeFood(capturedImage);
+    setIsProcessing(true);
     
-    console.log('✅ ML Response:', response);
-    
-    // Check if we got valid data
-    if (!response || !response.food_name || !response.nutrition) {
-      throw new Error('Invalid response from ML service');
-    }
+    try {
+      console.log('🔍 Calling ML service...');
+      const response = await recognizeFood(capturedImage);
+      
+      console.log('✅ ML Response:', JSON.stringify(response, null, 2));
+      
+      // ✅ Validate multi-dish response
+      if (!response || !response.dishes || response.dishes.length === 0) {
+        throw new Error('No dishes recognized');
+      }
 
-    // Navigate to result screen with proper data structure
-    navigation.navigate('FoodResult', {
-      result: {
-        food_name: response.food_name,
-        confidence: response.confidence || 0.5,
-        source: response.source || 'clarifai',
-        alternatives: response.alternatives || [],
-        nutrition: {
-          calories: response.nutrition.calories || 0,
-          protein: response.nutrition.protein || 0,
-          carbs: response.nutrition.carbs || 0,
-          fats: response.nutrition.fats || 0,
-        }
-      },
-      imageUri: capturedImage
-    });
-    
-  } catch (error) {
-    console.error('❌ Recognition error:', error);
-    
-    Alert.alert(
-      'Recognition Failed',
-      'Could not recognize the food. Would you like to enter it manually?',
-      [
-        { 
-          text: 'Try Again', 
-          onPress: () => setCapturedImage(null) 
-        },
-        { 
-          text: 'Manual Entry', 
-          onPress: () => navigation.navigate('Search') 
-        }
-      ]
-    );
-  } finally {
-    setIsProcessing(false);
-  }
-};
+      // ✅ Navigate with complete multi-dish result
+      navigation.navigate('FoodResult', {
+        result: response,  // Pass entire response object with dishes array
+        imageUri: capturedImage
+      });
+      
+    } catch (error) {
+      console.error('❌ Recognition error:', error);
+      
+      Alert.alert(
+        'Recognition Failed',
+        error.message || 'Could not recognize the food. Would you like to enter it manually?',
+        [
+          { 
+            text: 'Try Again', 
+            onPress: () => setCapturedImage(null) 
+          },
+          { 
+            text: 'Manual Entry', 
+            onPress: () => navigation.navigate('Search') 
+          }
+        ]
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Add loading overlay
   if (isProcessing) {
