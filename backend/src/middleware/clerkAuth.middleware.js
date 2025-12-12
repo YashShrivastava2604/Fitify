@@ -3,10 +3,7 @@ const { errorResponse } = require('../utils/responses');
 
 const verifyClerkToken = async (req, res, next) => {
   try {
-    // Check if req.auth exists and get the auth object
     let auth;
-    
-    // Handle both function and object patterns
     if (typeof req.auth === 'function') {
       auth = await req.auth();
     } else if (req.auth && typeof req.auth === 'object') {

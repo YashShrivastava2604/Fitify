@@ -1,23 +1,16 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 if (!GEMINI_API_KEY) {
   throw new Error('GEMINI_API_KEY not configured');
 }
-
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
 const recognizeFoodWithGemini = async (base64Image) => {
   try {
     console.log('🔍 Gemini 2.5 Flash: Analyzing food image...');
-
     const base64Data = base64Image.includes(',')
       ? base64Image.split(',')[1]
       : base64Image;
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `You are an expert food recognition and nutrition AI specialized in Indian cuisine.
 
 Analyze this food image. If it contains MULTIPLE DISHES (like a thali), list each dish separately with nutrition. If it's a SINGLE DISH, return one item.

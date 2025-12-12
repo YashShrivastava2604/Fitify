@@ -2,121 +2,48 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
-    // Clerk user ID (primary identifier)
-    clerkId: {
-      type: String,
-      required: true,
-      unique: true,
-      // index: true 
-    },
+    clerkId: { type: String, required: true, unique: true },
+
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, },
     
-    // Basic Info (from Clerk)
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      // REMOVED: index: true  ← This was causing duplicate index warning
-    },
+    firstName: { type: String, trim: true},
     
-    firstName: {
-      type: String,
-      trim: true,
-    },
+    lastName: { type: String, trim: true },
     
-    lastName: {
-      type: String,
-      trim: true,
-    },
+    profileImageUrl: {type: String },
     
-    profileImageUrl: {
-      type: String,
-    },
+    age: { type: Number, min: 13, max: 120},
     
-    // Profile Data
-    age: {
-      type: Number,
-      min: 13,
-      max: 120,
-    },
+    gender: { type: String, enum: ['male', 'female', 'other'] },
     
-    gender: {
-      type: String,
-      enum: ['male', 'female', 'other'],
-    },
+    height: { type: Number, min: 50, max: 300 },
     
-    height: {
-      type: Number,
-      min: 50,
-      max: 300,
-    },
+    currentWeight: {type: Number, min: 20, max: 500 },
+  
+    goal: {type: String, enum: ['lose', 'maintain', 'gain'], default: 'maintain' },
     
-    currentWeight: {
-      type: Number,
-      min: 20,
-      max: 500,
-    },
+    activityLevel: { type: String, enum: ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'], default: 'sedentary' },
+
+    bmi: {type: Number},
     
-    // Goals
-    goal: {
-      type: String,
-      enum: ['lose', 'maintain', 'gain'],
-      default: 'maintain',
-    },
+    bmiCategory: { type: String, enum: ['underweight', 'normal', 'overweight', 'obese'],},
     
-    activityLevel: {
-      type: String,
-      enum: ['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'],
-      default: 'sedentary',
-    },
+    bmr: {type: Number},
     
-    // Calculated Metrics
-    bmi: {
-      type: Number,
-    },
+    tdee: {type: Number},
     
-    bmiCategory: {
-      type: String,
-      enum: ['underweight', 'normal', 'overweight', 'obese'],
-    },
-    
-    bmr: {
-      type: Number,
-    },
-    
-    tdee: {
-      type: Number,
-    },
-    
-    dailyCalorieTarget: {
-      type: Number,
-    },
+    dailyCalorieTarget: {type: Number},
     
     // Macro Targets (in grams)
-    macroTargets: {
-      protein: { type: Number, default: 0 },
-      carbs: { type: Number, default: 0 },
-      fats: { type: Number, default: 0 },
+    macroTargets: { protein: { type: Number, default: 0 }, carbs: { type: Number, default: 0 }, fats: { type: Number, default: 0 },
     },
     
-    // Dietary Preferences
-    dietaryRestrictions: [{
-      type: String,
-      enum: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'nut_free', 'halal', 'kosher', 'keto', 'paleo'],
-    }],
+    dietaryRestrictions: [{ type: String, enum: ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'nut_free', 'halal', 'kosher', 'keto', 'paleo'], }],
     
-    // Onboarding Status
-    isOnboarded: {
-      type: Boolean,
-      default: false,
-    },
+    isOnboarded: { type: Boolean, default: false, },
     
-    onboardingCompletedAt: {
-      type: Date,
-    },
+    onboardingCompletedAt: { type: Date, },
     
-    // App Settings
     settings: {
       notificationsEnabled: { type: Boolean, default: true },
       mealReminders: { type: Boolean, default: false },
@@ -127,28 +54,18 @@ const userSchema = new mongoose.Schema(
         default: 'weekly',
       },
     },
+
+    isActive: {type: Boolean, default: true, },
     
-    // Account Status
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    
-    lastLoginAt: {
-      type: Date,
-    },
+    lastLoginAt: { type: Date, },
   },
   {
     timestamps: true,
   }
 );
 
-// Create indexes ONLY here (not in field definitions)
-// userSchema.index({ email: 1 });
-// userSchema.index({ clerkId: 1 });
 userSchema.index({ createdAt: -1 });
 
-// Virtual for full name
 userSchema.virtual('fullName').get(function() {
   if (this.firstName && this.lastName) {
     return `${this.firstName} ${this.lastName}`;
@@ -156,7 +73,6 @@ userSchema.virtual('fullName').get(function() {
   return this.firstName || this.email;
 });
 
-// Ensure virtuals are included in JSON
 userSchema.set('toJSON', { virtuals: true });
 userSchema.set('toObject', { virtuals: true });
 

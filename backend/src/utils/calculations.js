@@ -1,6 +1,4 @@
 /**
- * Calculate BMI (Body Mass Index)
- * Formula: weight (kg) / (height (m))²
  * @param {Number} weight - Weight in kilograms
  * @param {Number} height - Height in centimeters
  * @returns {Number} BMI value rounded to 1 decimal
@@ -12,7 +10,6 @@ const calculateBMI = (weight, height) => {
 };
 
 /**
- * Get BMI category
  * @param {Number} bmi - BMI value
  * @returns {String} Category (underweight, normal, overweight, obese)
  */

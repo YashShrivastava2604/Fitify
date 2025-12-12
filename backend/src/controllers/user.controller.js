@@ -11,10 +11,6 @@ const {
   calculateIdealWeightRange,
 } = require('../utils/calculations');
 
-/**
- * Get current user profile
- * GET /api/user/profile
- */
 const getUserProfile = async (req, res) => {
   try {
     // Use mongoUserId (set by verifyClerkToken middleware)
@@ -31,10 +27,6 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-/**
- * Complete user onboarding
- * POST /api/user/onboarding
- */
 const completeOnboarding = async (req, res) => {
   try {
     const { age, gender, height, currentWeight, goal, activityLevel, dietaryRestrictions } = req.body;
@@ -48,7 +40,6 @@ const completeOnboarding = async (req, res) => {
       return errorResponse(res, 404, 'User not found');
     }
 
-    // Calculate health metrics
     const bmi = calculateBMI(currentWeight, height);
     const bmiCategory = getBMICategory(bmi);
     const bmr = calculateBMR(currentWeight, height, age, gender);
@@ -56,7 +47,6 @@ const completeOnboarding = async (req, res) => {
     const dailyCalorieTarget = calculateCalorieTarget(tdee, goal);
     const macros = calculateMacros(dailyCalorieTarget, goal);
 
-    // Update user profile
     user.age = age;
     user.gender = gender;
     user.height = height;
@@ -75,7 +65,6 @@ const completeOnboarding = async (req, res) => {
 
     const updatedUser = await user.save();
 
-    // Create initial weight log
     await WeightLog.create({
       userId: updatedUser._id,
       clerkId: updatedUser.clerkId,
@@ -85,7 +74,6 @@ const completeOnboarding = async (req, res) => {
 
     console.log(`✅ User ${updatedUser.email} completed onboarding - isOnboarded: ${updatedUser.isOnboarded}`);
 
-    // ✅ FIX: Return user directly, not nested in { user: ... }
     return successResponse(res, 200, 'Onboarding completed successfully', updatedUser);
   } catch (error) {
     console.error('Onboarding error:', error);
@@ -94,10 +82,6 @@ const completeOnboarding = async (req, res) => {
 };
 
 
-/**
- * Update user profile
- * PUT /api/user/profile
- */
 const updateUserProfile = async (req, res) => {
   try {
     const updates = req.body;
@@ -107,13 +91,11 @@ const updateUserProfile = async (req, res) => {
       return errorResponse(res, 404, 'User not found');
     }
 
-    // Allowed fields to update
     const allowedUpdates = [
       'age', 'gender', 'height', 'currentWeight', 'goal', 
       'activityLevel', 'dietaryRestrictions', 'settings'
     ];
 
-    // Filter out non-allowed updates
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
       if (allowedUpdates.includes(key)) {
@@ -121,7 +103,6 @@ const updateUserProfile = async (req, res) => {
       }
     });
 
-    // If weight, height, age, gender, goal, or activity changes, recalculate metrics
     const needsRecalculation = ['age', 'gender', 'height', 'currentWeight', 'goal', 'activityLevel']
       .some(field => field in filteredUpdates);
 
