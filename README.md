@@ -42,7 +42,7 @@ The focus of the system is **usability and consistency**, not perfect nutritiona
 
 > Real application screens showing core user flows.
 
-### Dashboard
+<!-- ### Dashboard
 ![Dashboard]<img src="./image/fitify/fitify_Dashboard.jpg" width="600">
 
 ### Food Diary
@@ -58,7 +58,18 @@ The focus of the system is **usability and consistency**, not perfect nutritiona
 ![Onboarding]<img src="./image/fitify/fitify_onboarding.jpg" width="600">
 
 ### Profile
-![Profile]<img src="./image/fitify/fitify_profile.jpg" width="600">
+![Profile]<img src="./image/fitify/fitify_profile.jpg" width="600"> -->
+
+<p align="center">
+  <img src="./image/fitify/fitify_Dashboard.jpg" width="250" />
+  <img src="./image/fitify/fitify_dashboard2.jpg" width="250" />
+  <img src="./image/fitify/fitify_foodDiary.jpg" width="250" />
+  <img src="./image/fitify/fitify_foodRecognize.jpg" width="250" />
+  <img src="./image/fitify/fitify_onboarding.jpg" width="250" />
+  <img src="./image/fitify/fitify_profile.jpg" width="250" />
+  <img src="./image/fitify/fitify_scanFood.jpg" width="250" />
+</p>
+
 
 ---
 
