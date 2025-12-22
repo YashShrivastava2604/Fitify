@@ -61,13 +61,13 @@ The focus of the system is **usability and consistency**, not perfect nutritiona
 ![Profile]<img src="./image/fitify/fitify_profile.jpg" width="600"> -->
 
 <p align="center">
+  <img src="./image/fitify/fitify_onboarding.jpg" width="250" />
   <img src="./image/fitify/fitify_Dashboard.jpg" width="250" />
   <img src="./image/fitify/fitify_dashboard2.jpg" width="250" />
-  <img src="./image/fitify/fitify_foodDiary.jpg" width="250" />
-  <img src="./image/fitify/fitify_foodRecognize.jpg" width="250" />
-  <img src="./image/fitify/fitify_onboarding.jpg" width="250" />
-  <img src="./image/fitify/fitify_profile.jpg" width="250" />
   <img src="./image/fitify/fitify_scanFood.jpg" width="250" />
+  <img src="./image/fitify/fitify_foodRecognize.jpg" width="250" />
+  <img src="./image/fitify/fitify_foodDiary.jpg" width="250" />
+  <img src="./image/fitify/fitify_profile.jpg" width="250" />
 </p>
 
 
