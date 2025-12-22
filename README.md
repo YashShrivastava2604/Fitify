@@ -43,22 +43,22 @@ The focus of the system is **usability and consistency**, not perfect nutritiona
 > Real application screens showing core user flows.
 
 ### Dashboard
-![Dashboard](./image/fitify/fitify_Dashboard.jpg)
+![Dashboard]<img src="./image/fitify/fitify_Dashboard.jpg" width="600">
 
 ### Food Diary
-![Food Diary](./images/fitify/fitify_foodDiary.jpg)
+![Food Diary]<img src="./image/fitify/fitify_foodDiary.jpg" width="600">
 
 ### Food Recognition
-![Food Recognition](./images/fitify/fitify_foodRecognize.jpg)
+![Food Recognition]<img src="./image/fitify/fitify_foodRecognize.jpg" width="600">
 
 ### Scan Food
-![Scan Food](./images/fitify/fitify_scanFood.jpg)
+![Scan Food]<img src="./image/fitify/fitify_scanFood.jpg" width="600">
 
 ### Onboarding
-![Onboarding](./images/fitify/fitify_onboarding.jpg)
+![Onboarding]<img src="./image/fitify/fitify_onboarding.jpg" width="600">
 
 ### Profile
-![Profile](./images/fitify/fitify_profile.jpg)
+![Profile]<img src="./image/fitify/fitify_profile.jpg" width="600">
 
 ---
 
