@@ -30,7 +30,7 @@ The focus of the system is **usability and consistency**, not perfect nutritiona
 
 ## 🛠 Tech Stack
 
-- **Frontend:** React, Tailwind CSS  
+- **Frontend:** React Native, Tailwind CSS  
 - **Backend:** Node.js, Express  
 - **Database:** MongoDB  
 - **AI Integration:** Gemini API (fallback analysis)  
